@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Optional, Union
 
 
 # 创建默认 logger
@@ -19,8 +20,8 @@ logger.addHandler(console_handler)
 
 def setup_logger(
     level: int = logging.INFO,
-    log_file: str | Path | None = None,
-    format_string: str | None = None
+    log_file: Optional[Union[str, Path]] = None,
+    format_string: Optional[str] = None
 ) -> None:
     """
     配置 logger

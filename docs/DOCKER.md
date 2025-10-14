@@ -81,9 +81,10 @@ docker-compose down
 ## 镜像标签
 
 - `latest` - 最新稳定版本
-- `v1.0.0` - 特定版本号
-- `1.0` - 主版本号
-- `1` - 主版本
+- `1.0.0` - 特定版本号
+
+> 📝 **标签策略已优化**：每个 Release 只生成 2 个标签（`latest` 和完整版本号），减少标签数量，更清晰易用。  
+> 如需了解其他标签策略或修改配置，请参考 [Docker 标签策略说明](DOCKER_TAGS.md)
 
 ## 健康检查
 
@@ -98,6 +99,8 @@ docker inspect --format='{{json .State.Health}}' ani2openlist
 ```
 
 ## 常见问题
+
+> 💡 **完整的故障排查指南**: 查看 [Docker 故障排查文档](DOCKER_TROUBLESHOOTING.md) 获取详细的问题解决方案。
 
 ### 1. 配置文件权限问题
 
