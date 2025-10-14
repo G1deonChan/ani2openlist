@@ -91,12 +91,24 @@ def run_ani2openlist():
     def _run_in_thread():
         """在独立线程中运行异步任务"""
         try:
-            # 在 Windows 上需要设置事件循环策略
+            # 重置事件循环策略（确保全新环境）
             if sys.platform == 'win32':
                 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+            else:
+                asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
             
-            # 使用 asyncio.run() 自动管理事件循环
-            # 这会创建新循环、运行任务、然后清理所有资源
+            # 确保当前线程没有事件循环
+            try:
+                old_loop = asyncio.get_event_loop()
+                if old_loop and not old_loop.is_closed():
+                    old_loop.close()
+            except RuntimeError:
+                pass  # 没有循环，正常情况
+            
+            # 清除循环引用
+            asyncio.set_event_loop(None)
+            
+            # 使用 asyncio.run() 创建全新的事件循环
             result = asyncio.run(run_ani2openlist_async())
             task_status['last_result'] = result
         except Exception as e:
@@ -104,6 +116,14 @@ def run_ani2openlist():
             add_log(error_msg, 'error')
             task_status['last_result'] = {'success': False, 'message': error_msg}
         finally:
+            # 最终清理
+            try:
+                loop = asyncio.get_event_loop()
+                if loop and not loop.is_closed():
+                    loop.close()
+            except Exception:
+                pass
+            asyncio.set_event_loop(None)
             task_status['running'] = False
     
     # 在新线程中运行，避免干扰主事件循环
