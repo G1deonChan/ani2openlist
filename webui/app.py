@@ -90,51 +90,20 @@ def run_ani2openlist():
     
     def _run_in_thread():
         """在独立线程中运行异步任务"""
-        loop = None
         try:
             # 在 Windows 上需要设置事件循环策略
             if sys.platform == 'win32':
                 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
             
-            # 创建全新的事件循环
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            try:
-                result = loop.run_until_complete(run_ani2openlist_async())
-                task_status['last_result'] = result
-            except Exception as e:
-                error_msg = f'任务执行失败: {str(e)}'
-                add_log(error_msg, 'error')
-                task_status['last_result'] = {'success': False, 'message': error_msg}
+            # 使用 asyncio.run() 自动管理事件循环
+            # 这会创建新循环、运行任务、然后清理所有资源
+            result = asyncio.run(run_ani2openlist_async())
+            task_status['last_result'] = result
         except Exception as e:
             error_msg = f'任务执行失败: {str(e)}'
             add_log(error_msg, 'error')
             task_status['last_result'] = {'success': False, 'message': error_msg}
         finally:
-            # 清理事件循环
-            if loop is not None:
-                try:
-                    # 取消所有待处理任务
-                    pending = asyncio.all_tasks(loop)
-                    for task in pending:
-                        task.cancel()
-                    # 运行直到所有任务取消完成
-                    if pending:
-                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                except Exception as cleanup_error:
-                    # 静默处理清理错误，但记录日志
-                    add_log(f'清理事件循环时出错: {str(cleanup_error)}', 'warning')
-                finally:
-                    # 关闭循环
-                    try:
-                        if not loop.is_closed():
-                            loop.close()
-                    except Exception:
-                        pass
-                    # 清除事件循环引用
-                    asyncio.set_event_loop(None)
-            
             task_status['running'] = False
     
     # 在新线程中运行，避免干扰主事件循环
