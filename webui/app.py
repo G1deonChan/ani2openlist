@@ -17,6 +17,8 @@ from apscheduler.triggers.cron import CronTrigger
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ani2openlist import Ani2Openlist, load_config, Config
+from ani2openlist.core.logger import logger
+from ani2openlist.utils.http import RequestUtils
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ani2openlist-secret-key-change-in-production'
@@ -66,6 +68,7 @@ def add_log(message, level='info'):
 
 async def run_ani2openlist_async():
     """异步运行 ani2openlist"""
+    ani = None
     try:
         add_log('开始执行任务...')
         config = load_config(str(CONFIG_PATH))
@@ -77,6 +80,12 @@ async def run_ani2openlist_async():
         error_msg = f'任务执行失败: {str(e)}'
         add_log(error_msg, 'error')
         return {'success': False, 'message': error_msg}
+    finally:
+        # 清理所有 HTTP 客户端资源，防止事件循环关闭警告
+        try:
+            await RequestUtils.close_all_async_clients()
+        except Exception as e:
+            logger.debug(f'清理 HTTP 客户端失败: {e}')
 
 
 def run_ani2openlist():
@@ -91,39 +100,47 @@ def run_ani2openlist():
     def _run_in_thread():
         """在独立线程中运行异步任务"""
         try:
-            # 重置事件循环策略（确保全新环境）
+            # 方案：完全不依赖 get_event_loop()，手动创建和管理循环
+            # 1. 创建新的事件循环策略
             if sys.platform == 'win32':
-                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+                policy = asyncio.WindowsSelectorEventLoopPolicy()
             else:
-                asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+                policy = asyncio.DefaultEventLoopPolicy()
             
-            # 确保当前线程没有事件循环
+            # 2. 创建全新的事件循环
+            loop = policy.new_event_loop()
+            
+            # 3. 设置为当前线程的事件循环
+            asyncio.set_event_loop(loop)
+            
             try:
-                old_loop = asyncio.get_event_loop()
-                if old_loop and not old_loop.is_closed():
-                    old_loop.close()
-            except RuntimeError:
-                pass  # 没有循环，正常情况
-            
-            # 清除循环引用
-            asyncio.set_event_loop(None)
-            
-            # 使用 asyncio.run() 创建全新的事件循环
-            result = asyncio.run(run_ani2openlist_async())
-            task_status['last_result'] = result
+                # 4. 运行异步任务
+                result = loop.run_until_complete(run_ani2openlist_async())
+                task_status['last_result'] = result
+            finally:
+                # 5. 清理：关闭所有异步生成器
+                try:
+                    loop.run_until_complete(loop.shutdown_asyncgens())
+                except Exception:
+                    pass
+                
+                # 6. 清理：关闭所有异步上下文管理器
+                try:
+                    loop.run_until_complete(loop.shutdown_default_executor())
+                except Exception:
+                    pass
+                
+                # 7. 关闭循环
+                loop.close()
+                
+                # 8. 清除线程的事件循环引用
+                asyncio.set_event_loop(None)
+                
         except Exception as e:
             error_msg = f'任务执行失败: {str(e)}'
             add_log(error_msg, 'error')
             task_status['last_result'] = {'success': False, 'message': error_msg}
         finally:
-            # 最终清理
-            try:
-                loop = asyncio.get_event_loop()
-                if loop and not loop.is_closed():
-                    loop.close()
-            except Exception:
-                pass
-            asyncio.set_event_loop(None)
             task_status['running'] = False
     
     # 在新线程中运行，避免干扰主事件循环

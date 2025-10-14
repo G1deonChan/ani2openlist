@@ -284,3 +284,23 @@ class RequestUtils:
         :return: HTTP 响应对象
         """
         return cls.request("post", url, sync=sync, data=data, json=json, **kwargs)
+    
+    @classmethod
+    async def close_all_async_clients(cls) -> None:
+        """
+        关闭所有异步 HTTP 客户端
+        用于清理资源，防止事件循环关闭时出现警告
+        """
+        # 关闭缓存的客户端
+        for client in cls.__clients.values():
+            try:
+                await client.close_async_client()
+            except Exception:
+                pass
+        
+        # 关闭弱引用集合中的客户端
+        for client in list(cls.__client_list):
+            try:
+                await client.close_async_client()
+            except Exception:
+                pass
