@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}仪表板 - Ani2Openlist{% endblock %}
+
+{% block content %}
+<h2>仪表板</h2>
+
+<div id="alert-container"></div>
+
+<div class="card">
+    <h3>任务状态</h3>
+    <table>
+        <tr>
+            <th>状态</th>
+            <td><span id="task-status" class="status-idle">空闲</span></td>
+        </tr>
+        <tr>
+            <th>上次运行时间</th>
+            <td id="last-run">从未运行</td>
+        </tr>
+        <tr>
+            <th>上次运行结果</th>
+            <td id="last-result">-</td>
+        </tr>
+    </table>
+    <div style="margin-top: 20px;">
+        <button id="run-btn" class="btn btn-primary" onclick="runTask()">
+            ▶️ 立即运行
+        </button>
+        <button class="btn btn-secondary" onclick="refreshStatus()">
+            🔄 刷新状态
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <h3>最近日志</h3>
+    <div id="recent-logs">
+        <div class="loading">加载中...</div>
+    </div>
+    <div style="margin-top: 15px;">
+        <a href="{{ url_for('logs_page') }}" class="btn btn-secondary">查看所有日志</a>
+    </div>
+</div>
+
+<div class="card">
+    <h3>快速链接</h3>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="{{ url_for('config_page') }}" class="btn btn-primary">⚙️ 编辑配置</a>
+        <a href="{{ url_for('schedule_page') }}" class="btn btn-primary">⏰ 设置定时任务</a>
+        <a href="{{ url_for('logs_page') }}" class="btn btn-primary">📋 查看日志</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let statusInterval;
+
+function showAlert(message, type = 'info') {
+    const alertHtml = `
+        <div class="alert alert-${type}">
+            ${message}
+        </div>
+    `;
+    document.getElementById('alert-container').innerHTML = alertHtml;
+    setTimeout(() => {
+        document.getElementById('alert-container').innerHTML = '';
+    }, 5000);
+}
+
+async function refreshStatus() {
+    try {
+        const response = await axios.get('/api/status');
+        const status = response.data;
+        
+        // 更新状态
+        const statusEl = document.getElementById('task-status');
+        if (status.running) {
+            statusEl.textContent = '运行中';
+            statusEl.className = 'status-running';
+            document.getElementById('run-btn').disabled = true;
+        } else {
+            statusEl.textContent = '空闲';
+            statusEl.className = 'status-idle';
+            document.getElementById('run-btn').disabled = false;
+        }
+        
+        // 更新上次运行时间
+        document.getElementById('last-run').textContent = status.last_run || '从未运行';
+        
+        // 更新上次运行结果
+        const resultEl = document.getElementById('last-result');
+        if (status.last_result) {
+            resultEl.textContent = status.last_result.message;
+            resultEl.style.color = status.last_result.success ? '#38a169' : '#e53e3e';
+        } else {
+            resultEl.textContent = '-';
+            resultEl.style.color = '#718096';
+        }
+        
+        // 更新最近日志
+        updateRecentLogs(status.logs);
+    } catch (error) {
+        console.error('获取状态失败:', error);
+    }
+}
+
+function updateRecentLogs(logs) {
+    const logsContainer = document.getElementById('recent-logs');
+    if (!logs || logs.length === 0) {
+        logsContainer.innerHTML = '<p style="color: #718096;">暂无日志</p>';
+        return;
+    }
+    
+    const recentLogs = logs.slice(0, 5);
+    let html = '<table><tr><th style="width: 180px;">时间</th><th style="width: 80px;">级别</th><th>消息</th></tr>';
+    
+    recentLogs.forEach(log => {
+        let levelColor = '#718096';
+        if (log.level === 'success') levelColor = '#38a169';
+        else if (log.level === 'error') levelColor = '#e53e3e';
+        else if (log.level === 'warning') levelColor = '#dd6b20';
+        
+        html += `
+            <tr>
+                <td style="font-size: 12px;">${log.time}</td>
+                <td style="color: ${levelColor}; font-weight: 600;">${log.level}</td>
+                <td>${log.message}</td>
+            </tr>
+        `;
+    });
+    
+    html += '</table>';
+    logsContainer.innerHTML = html;
+}
+
+async function runTask() {
+    if (confirm('确定要立即运行任务吗？')) {
+        try {
+            const response = await axios.post('/api/run');
+            showAlert(response.data.message, 'success');
+            refreshStatus();
+            
+            // 开始轮询状态
+            startStatusPolling();
+        } catch (error) {
+            showAlert(error.response?.data?.error || '运行任务失败', 'error');
+        }
+    }
+}
+
+function startStatusPolling() {
+    // 如果已经在轮询，先停止
+    if (statusInterval) {
+        clearInterval(statusInterval);
+    }
+    
+    // 每2秒刷新一次状态
+    statusInterval = setInterval(() => {
+        refreshStatus();
+    }, 2000);
+}
+
+function stopStatusPolling() {
+    if (statusInterval) {
+        clearInterval(statusInterval);
+        statusInterval = null;
+    }
+}
+
+// 页面加载时刷新状态
+document.addEventListener('DOMContentLoaded', () => {
+    refreshStatus();
+    startStatusPolling();
+});
+
+// 页面卸载时停止轮询
+window.addEventListener('beforeunload', () => {
+    stopStatusPolling();
+});
+</script>
+{% endblock %}

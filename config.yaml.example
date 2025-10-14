@@ -1,0 +1,54 @@
+# ani2openlist 配置文件示例
+# 复制此文件为 config.yaml 并根据实际情况修改
+
+# Openlist 服务器配置
+openlist:
+  # Openlist 服务器地址
+  url: "http://localhost:5244"
+  
+  # 认证方式1: 用户名密码
+  username: "admin"
+  password: "your_password"
+  
+  # 认证方式2: Token（优先使用 token）
+  # token: "your_openlist_token"
+  
+  # 目标挂载目录
+  target_dir: "/Anime"
+
+# ANI Open 配置
+ani:
+  # 更新模式
+  # true: 使用 RSS 追更最新番剧
+  # false: 手动指定年份/月份或关键字
+  rss_update: true
+  
+  # 手动指定年份和季度（当 rss_update 为 false 时生效）
+  # year: 2024
+  # month: 10  # 1=冬季, 4=春季, 7=夏季, 10=秋季
+  
+  # 自定义关键字（当 rss_update 为 false 且不指定 year/month 时生效）
+  # key_word: "2024-10"
+  
+  # ANI Open 项目源域名（可自行反代）
+  src_domain: "aniopen.an-i.workers.dev"
+  
+  # ANI Open 项目 RSS 域名（可自行反代）
+  rss_domain: "api.ani.rip"
+
+# 日志配置
+logging:
+  # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  
+  # 日志格式
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # 日志文件（可选，不配置则只输出到控制台）
+  # file: "logs/ani2openlist.log"
+  
+  # 日志文件最大大小（字节）
+  # max_bytes: 10485760  # 10MB
+  
+  # 保留的日志文件数量
+  # backup_count: 5

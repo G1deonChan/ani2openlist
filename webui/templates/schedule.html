@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}定时任务 - Ani2Openlist{% endblock %}
+
+{% block content %}
+<h2>定时任务管理</h2>
+
+<div id="alert-container"></div>
+
+<form id="schedule-form">
+    <div class="card">
+        <h3>定时任务设置</h3>
+        
+        <div class="form-group">
+            <label for="enabled">
+                <input type="checkbox" id="enabled" name="enabled">
+                启用定时任务
+            </label>
+        </div>
+        
+        <div class="form-group">
+            <label for="schedule_type">任务类型</label>
+            <select id="schedule_type" name="schedule_type">
+                <option value="daily">每天执行</option>
+                <option value="interval">间隔执行</option>
+                <option value="cron">自定义 Cron</option>
+            </select>
+        </div>
+        
+        <div id="daily-config" class="schedule-config">
+            <div class="form-group">
+                <label for="daily_time">执行时间</label>
+                <input type="time" id="daily_time" name="daily_time" value="10:00">
+                <small style="color: #718096;">每天在指定时间执行</small>
+            </div>
+        </div>
+        
+        <div id="interval-config" class="schedule-config" style="display: none;">
+            <div class="form-group">
+                <label for="interval_hours">间隔小时数</label>
+                <input type="number" id="interval_hours" name="interval_hours" 
+                       value="6" min="1" max="24">
+                <small style="color: #718096;">每隔指定小时数执行一次</small>
+            </div>
+        </div>
+        
+        <div id="cron-config" class="schedule-config" style="display: none;">
+            <div class="form-group">
+                <label for="cron_expr">Cron 表达式</label>
+                <input type="text" id="cron_expr" name="cron_expr" 
+                       placeholder="0 10 * * *">
+                <small style="color: #718096;">
+                    格式：分 时 日 月 星期<br>
+                    示例：0 10 * * * 表示每天 10:00
+                </small>
+            </div>
+            
+            <div style="background: #f7fafc; padding: 15px; border-radius: 5px; margin-top: 10px;">
+                <strong>Cron 表达式说明：</strong>
+                <ul style="margin: 10px 0; padding-left: 20px; color: #4a5568;">
+                    <li>0 10 * * * - 每天 10:00 执行</li>
+                    <li>0 */6 * * * - 每 6 小时执行一次</li>
+                    <li>0 10 * * 1 - 每周一 10:00 执行</li>
+                    <li>0 10 1 * * - 每月 1 日 10:00 执行</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h3>当前任务列表</h3>
+        <div id="jobs-list">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+    
+    <div style="display: flex; gap: 10px;">
+        <button type="submit" class="btn btn-primary">💾 保存配置</button>
+        <button type="button" class="btn btn-secondary" onclick="loadSchedule()">🔄 重新加载</button>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">❌ 取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showAlert(message, type = 'info') {
+    const alertHtml = `
+        <div class="alert alert-${type}">
+            ${message}
+        </div>
+    `;
+    document.getElementById('alert-container').innerHTML = alertHtml;
+    window.scrollTo(0, 0);
+    setTimeout(() => {
+        document.getElementById('alert-container').innerHTML = '';
+    }, 5000);
+}
+
+// 任务类型切换
+document.getElementById('schedule_type').addEventListener('change', function() {
+    document.querySelectorAll('.schedule-config').forEach(el => {
+        el.style.display = 'none';
+    });
+    
+    const type = this.value;
+    document.getElementById(`${type}-config`).style.display = 'block';
+});
+
+async function loadSchedule() {
+    try {
+        const response = await axios.get('/api/schedule');
+        const config = response.data;
+        
+        // 填充配置
+        document.getElementById('enabled').checked = config.enabled || false;
+        document.getElementById('schedule_type').value = config.type || 'daily';
+        
+        // 触发类型切换
+        document.getElementById('schedule_type').dispatchEvent(new Event('change'));
+        
+        // 填充具体配置
+        if (config.type === 'daily') {
+            document.getElementById('daily_time').value = config.time || '10:00';
+        } else if (config.type === 'interval') {
+            document.getElementById('interval_hours').value = config.hours || 6;
+        } else if (config.type === 'cron') {
+            document.getElementById('cron_expr').value = config.cron || '0 10 * * *';
+        }
+        
+        // 更新任务列表
+        updateJobsList(config.jobs || []);
+        
+        showAlert('配置加载成功', 'success');
+    } catch (error) {
+        console.error('加载配置失败:', error);
+        showAlert('加载配置失败', 'error');
+    }
+}
+
+function updateJobsList(jobs) {
+    const jobsList = document.getElementById('jobs-list');
+    
+    if (!jobs || jobs.length === 0) {
+        jobsList.innerHTML = '<p style="color: #718096;">暂无定时任务</p>';
+        return;
+    }
+    
+    let html = '<table><tr><th>任务名称</th><th>任务 ID</th><th>下次运行时间</th></tr>';
+    
+    jobs.forEach(job => {
+        html += `
+            <tr>
+                <td>${job.name}</td>
+                <td style="font-family: monospace; font-size: 12px;">${job.id}</td>
+                <td style="color: #38a169; font-weight: 600;">${job.next_run}</td>
+            </tr>
+        `;
+    });
+    
+    html += '</table>';
+    jobsList.innerHTML = html;
+}
+
+document.getElementById('schedule-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // 构建配置对象
+    const config = {
+        enabled: document.getElementById('enabled').checked,
+        type: document.getElementById('schedule_type').value
+    };
+    
+    // 根据类型添加具体配置
+    if (config.type === 'daily') {
+        config.time = document.getElementById('daily_time').value;
+    } else if (config.type === 'interval') {
+        config.hours = parseInt(document.getElementById('interval_hours').value);
+    } else if (config.type === 'cron') {
+        config.cron = document.getElementById('cron_expr').value;
+    }
+    
+    try {
+        const response = await axios.post('/api/schedule', config);
+        showAlert(response.data.message, 'success');
+        
+        // 重新加载配置以更新任务列表
+        setTimeout(() => {
+            loadSchedule();
+        }, 1000);
+    } catch (error) {
+        showAlert(error.response?.data?.error || '保存配置失败', 'error');
+    }
+});
+
+// 页面加载时加载配置
+document.addEventListener('DOMContentLoaded', loadSchedule);
+</script>
+{% endblock %}

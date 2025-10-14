@@ -1,0 +1,54 @@
+from json import loads, dumps
+from typing import Literal
+from types import FunctionType
+
+from pydantic import BaseModel, ConfigDict, model_validator
+
+
+class OpenlistStorage(BaseModel):
+    """
+    Openlist 存储器模型
+    """
+
+    model_config = ConfigDict(
+        ignored_types=(FunctionType, type(lambda: None))  # 覆盖 Cython 类型
+    )
+
+    id: int = 0  # 存储器 ID
+    status: Literal["work", "disabled"] = "work"  # 存储器状态
+    remark: str = ""  # 备注
+    modified: str = ""  # 修改时间
+    disabled: bool = False  # 是否禁用
+    mount_path: str = ""  # 挂载路径
+    order: int = 0  # 排序
+    driver: str = "Local"  # 驱动器
+    cache_expiration: int = 30  # 缓存过期时间
+    addition: str = "{}"  # 附加信息
+    enable_sign: bool = False  # 是否启用签名
+    order_by: str = "name"  # 排序字段
+    order_direction: str = "asc"  # 排序方向
+    extract_folder: str = "front"  # 提取文件夹
+    web_proxy: bool = False  # 是否启用 Web 代理
+    webdav_policy: str = "native_proxy"  # WebDAV 策略
+    down_proxy_url: str = ""  # 下载代理 URL
+
+    def set_addition_by_dict(self, additon: dict) -> None:
+        """
+        使用 Python 字典设置 Storage 附加信息
+        """
+        self.addition = dumps(additon)
+
+    @property
+    def addition2dict(self) -> dict:
+        """
+        获取 Storage 附加信息，返回Python 字典
+        """
+        return loads(self.addition)
+
+    @model_validator(mode="before")
+    def check_status(cls, values: dict) -> dict:
+        status = values.get("status")
+        disabled = values.get("disabled")
+        if (disabled and status == "work") or (not disabled and status == "disabled"):
+            raise ValueError(f"存储器状态错误，{status=}, {disabled=}")
+        return values
