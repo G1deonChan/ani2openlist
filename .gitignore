@@ -144,3 +144,10 @@ webui/schedule.yaml
 # Web UI session data
 webui/*.db
 webui/instance/
+
+# Test scripts and files
+test_*.py
+*_test.py
+quickstart.py
+check_privacy.py
+rename_to_openlist.py
