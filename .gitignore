@@ -147,6 +147,8 @@ webui/instance/
 
 # Test scripts and files
 test_*.py
+test_*.sh
+test_*.ps1
 *_test.py
 quickstart.py
 check_privacy.py

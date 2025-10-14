@@ -2,6 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/docker-supported-blue.svg)](https://hub.docker.com/r/yourusername/ani2openlist)
+[![Docker Image Size](https://img.shields.io/docker/image-size/yourusername/ani2openlist/latest)](https://hub.docker.com/r/yourusername/ani2openlist)
+[![Docker Pulls](https://img.shields.io/docker/pulls/yourusername/ani2openlist)](https://hub.docker.com/r/yourusername/ani2openlist)
 
 将 ANI Open 项目的视频通过地址树的方式挂载到 Openlist 服务器上。
 
@@ -15,6 +18,23 @@
 - 📂 自动创建和更新 Openlist UrlTree 存储
 
 ## 安装
+
+### 使用 Docker（推荐）
+
+```bash
+# 使用 docker-compose
+docker-compose up -d
+
+# 或使用 docker run
+docker run -d \
+  --name ani2openlist \
+  -p 5000:5000 \
+  -v $(pwd)/config.yaml:/app/config.yaml \
+  -v $(pwd)/logs:/app/logs \
+  yourusername/ani2openlist:latest
+```
+
+详见 [Docker 部署指南](docs/DOCKER.md)
 
 ### 使用 pip 安装
 

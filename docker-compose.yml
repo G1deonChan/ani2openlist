@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  ani2openlist:
+    image: ${DOCKERHUB_USERNAME:-yourusername}/ani2openlist:latest
+    container_name: ani2openlist
+    restart: unless-stopped
+    
+    ports:
+      - "5000:5000"
+    
+    volumes:
+      # 挂载配置文件
+      - ./config.yaml:/app/config.yaml
+      - ./webui/schedule.yaml:/app/webui/schedule.yaml
+      # 挂载日志目录
+      - ./logs:/app/logs
+    
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1
+    
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # 资源限制（可选）
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M

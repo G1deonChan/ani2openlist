@@ -1,11 +1,18 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
 __pycache__
 *.py[cod]
 *$py.class
 *.so
 .Python
-build/
+*.egg-info
+dist
+build
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -15,23 +22,46 @@ parts/
 sdist/
 var/
 wheels/
-*.egg-info/
 .installed.cfg
 *.egg
-.env
+
+# Virtual environments
+venv
+env
+ENV
 .venv
-env/
-venv/
-ENV/
-.git
-.gitignore
-.vscode/
-.idea/
+
+# IDEs
+.vscode
+.idea
 *.swp
 *.swo
 *~
+
+# OS
 .DS_Store
 Thumbs.db
+
+# Project specific
 logs/
 *.log
-config/config.yaml
+
+# Test files
+test_*.py
+*_test.py
+tests/
+quickstart.py
+check_privacy.py
+rename_to_openlist.py
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Configuration files
+config.yaml
+webui/schedule.yaml
+
+# CI/CD
+.github/workflows/python-tests.yml

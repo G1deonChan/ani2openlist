@@ -194,6 +194,34 @@ def setup_scheduler():
             add_log(f'已设置自定义定时任务: {cron_expr}')
 
 
+@app.route('/health')
+def health_check():
+    """健康检查端点 - 用于 Docker 容器健康检查"""
+    try:
+        # 检查配置文件是否存在
+        config_exists = CONFIG_PATH.exists()
+        
+        # 检查调度器状态
+        scheduler_running = scheduler.running
+        
+        # 返回健康状态
+        status = {
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'config_exists': config_exists,
+            'scheduler_running': scheduler_running,
+            'task_running': task_status['running']
+        }
+        
+        return jsonify(status), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
 @app.route('/')
 def index():
     """首页"""
