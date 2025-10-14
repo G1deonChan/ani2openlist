@@ -288,8 +288,9 @@ class RequestUtils:
     @classmethod
     async def close_all_async_clients(cls) -> None:
         """
-        关闭所有异步 HTTP 客户端
+        关闭所有异步 HTTP 客户端并清除缓存
         用于清理资源，防止事件循环关闭时出现警告
+        下次调用 get_client() 时会自动创建新的客户端
         """
         # 关闭缓存的客户端
         for client in cls.__clients.values():
@@ -297,6 +298,9 @@ class RequestUtils:
                 await client.close_async_client()
             except Exception:
                 pass
+        
+        # 清除缓存，下次会创建新的客户端
+        cls.__clients.clear()
         
         # 关闭弱引用集合中的客户端
         for client in list(cls.__client_list):

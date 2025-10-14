@@ -81,7 +81,8 @@ async def run_ani2openlist_async():
         add_log(error_msg, 'error')
         return {'success': False, 'message': error_msg}
     finally:
-        # 清理所有 HTTP 客户端资源，防止事件循环关闭警告
+        # 清理所有 HTTP 客户端资源并清除缓存
+        # 下次任务时会自动创建新的客户端
         try:
             await RequestUtils.close_all_async_clients()
         except Exception as e:
