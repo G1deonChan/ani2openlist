@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from ani2openlist import Ani2Openlist, load_config, Config
 from ani2openlist.core.logger import logger
 from ani2openlist.utils.http import RequestUtils
+from ani2openlist.utils.multiton import Multiton
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ani2openlist-secret-key-change-in-production'
@@ -81,12 +82,15 @@ async def run_ani2openlist_async():
         add_log(error_msg, 'error')
         return {'success': False, 'message': error_msg}
     finally:
-        # 清理所有 HTTP 客户端资源并清除缓存
-        # 下次任务时会自动创建新的客户端
+        # 清理所有资源并清除缓存
+        # 1. 关闭并清除 HTTP 客户端缓存
+        # 2. 清除 Multiton 实例缓存（OpenlistClient 等）
+        # 下次任务时会自动创建全新的实例
         try:
             await RequestUtils.close_all_async_clients()
+            Multiton.clear_instances()
         except Exception as e:
-            logger.debug(f'清理 HTTP 客户端失败: {e}')
+            logger.debug(f'清理资源失败: {e}')
 
 
 def run_ani2openlist():

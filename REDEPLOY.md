@@ -7,8 +7,9 @@
 ### 核心改进
 
 1. ✅ **关闭 HTTP 客户端** - 防止事件循环引用
-2. ✅ **清除客户端缓存** - 防止复用已关闭的客户端
-3. ✅ **优化事件循环管理** - 使用 `policy.new_event_loop()` 而非 `asyncio.run()`
+2. ✅ **清除 HTTP 客户端缓存** - 防止复用已关闭的客户端
+3. ✅ **清除 Multiton 实例缓存** - 防止复用持有已关闭资源的实例 ⭐ 关键！
+4. ✅ **优化事件循环管理** - 使用 `policy.new_event_loop()` 而非 `asyncio.run()`
 
 ## 部署步骤
 
@@ -126,39 +127,48 @@ ls -la /app/webui/app.py
 
 ## 修改的文件
 
-如果手动更新，只需要修改这两个文件：
+如果手动更新，需要修改这三个文件：
 
-1. **ani2openlist/utils/http.py**
+1. **ani2openlist/utils/multiton.py** ⭐ 重要
+   - 添加了 `clear_instances()` 类方法
+
+2. **ani2openlist/utils/http.py**
    - 在 `close_all_async_clients()` 方法中添加了 `cls.__clients.clear()`
 
-2. **webui/app.py**
-   - 导入了 `RequestUtils` 和 `logger`
-   - 在 `run_ani2openlist_async()` 的 `finally` 块中调用清理方法
+3. **webui/app.py**
+   - 导入了 `RequestUtils`、`logger` 和 `Multiton`
+   - 在 `run_ani2openlist_async()` 的 `finally` 块中调用 `Multiton.clear_instances()`
 
 ## 技术细节
 
-### 为什么要清除缓存？
+### 为什么要清除两层缓存？
 
 ```python
-# RequestUtils 使用字典缓存客户端
+# 第 1 层：RequestUtils 缓存 HTTPClient
 __clients: dict[str, HTTPClient] = {}
 
+# 第 2 层：Multiton 缓存 OpenlistClient（持有 HTTPClient）
+_instances: dict = {}
+
 # 第一次任务后：
-await client.aclose()  # 关闭了
-# 但 __clients 仍然引用它
+await client.aclose()  # 关闭 HTTPClient
+# ❌ 但两个缓存都还在！
 
-# 第二次任务：
-client = __clients.get(key)  # 返回已关闭的客户端
-await client.request(...)     # 💥 ERROR
+# 第二次任务（只清除第 1 层）：
+RequestUtils.__clients.clear()  # ✅ 清除了
+# ❌ 但 Multiton._instances 还缓存着 OpenlistClient
+# ❌ OpenlistClient 内部的 self.__client 指向已关闭的 HTTPClient
+await client.request()  # 💥 ERROR: Client has been closed
 
-# 修复：清除缓存
+# 修复：清除两层缓存
 await client.aclose()
-__clients.clear()  # 下次会创建新的
+RequestUtils.__clients.clear()  # 清除第 1 层
+Multiton.clear_instances()      # ⭐ 清除第 2 层
 
 # 第二次任务：
-client = __clients.get(key)  # None
-client = HTTPClient()        # 创建新的
-await client.request(...)    # ✅ SUCCESS
+# OpenlistClient 从头创建
+# HTTPClient 从头创建
+await client.request()  # ✅ SUCCESS
 ```
 
 ## 验证成功的标志
