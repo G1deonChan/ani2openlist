@@ -1,8 +1,8 @@
 from json import loads, dumps
-from typing import Literal
+from typing import Literal, Optional
 from types import FunctionType
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator, field_validator
 
 
 class OpenlistStorage(BaseModel):
@@ -17,7 +17,7 @@ class OpenlistStorage(BaseModel):
     id: int = 0  # 存储器 ID
     status: Literal["work", "disabled"] = "work"  # 存储器状态
     remark: str = ""  # 备注
-    modified: str = ""  # 修改时间
+    modified: Optional[str] = None  # 修改时间（可为空）
     disabled: bool = False  # 是否禁用
     mount_path: str = ""  # 挂载路径
     order: int = 0  # 排序
@@ -44,6 +44,14 @@ class OpenlistStorage(BaseModel):
         获取 Storage 附加信息，返回Python 字典
         """
         return loads(self.addition)
+
+    @field_validator("modified", mode="before")
+    @classmethod
+    def validate_modified(cls, v):
+        """验证 modified 字段，将空字符串转换为 None"""
+        if v == "" or v is None:
+            return None
+        return v
 
     @model_validator(mode="before")
     def check_status(cls, values: dict) -> dict:

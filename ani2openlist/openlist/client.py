@@ -331,7 +331,6 @@ class OpenlistClient(metaclass=Multiton):
             "status": storage.status,
             "addition": storage.addition,
             "remark": storage.remark,
-            "modified": storage.modified,
             "disabled": storage.disabled,
             "enable_sign": storage.enable_sign,
             "order_by": storage.order_by,
@@ -341,6 +340,10 @@ class OpenlistClient(metaclass=Multiton):
             "webdav_policy": storage.webdav_policy,
             "down_proxy_url": storage.down_proxy_url,
         }
+        
+        # 只在 modified 字段不为空时才包含它
+        if storage.modified:
+            json["modified"] = storage.modified
 
         resp = await self.__post(self.url + "/api/admin/storage/update", json=json)
         if resp.status_code != 200:
