@@ -50,7 +50,32 @@ docker run -d \
 
 ---
 
-### 3. 权限问题
+### 3. Event loop is closed
+
+**错误信息**:
+```
+任务执行失败: Event loop is closed
+```
+
+**原因**:
+定时任务或重复执行时，事件循环没有正确清理
+
+**解决方案**:
+✅ **已修复** - 升级到最新版本
+
+```bash
+# 拉取最新代码
+git pull origin main
+
+# 重新构建并启动
+docker-compose up -d --build
+```
+
+详见: [Event Loop 错误修复文档](../EVENT_LOOP_FIX.md)
+
+---
+
+### 4. 权限问题
 
 **错误信息**:
 ```
