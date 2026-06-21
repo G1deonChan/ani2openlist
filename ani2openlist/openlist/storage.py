@@ -4,6 +4,8 @@ from types import FunctionType
 
 from pydantic import BaseModel, ConfigDict, model_validator, field_validator
 
+from ani2openlist.core.logger import logger
+
 
 class OpenlistStorage(BaseModel):
     """
@@ -51,6 +53,15 @@ class OpenlistStorage(BaseModel):
         """验证 modified 字段，将空字符串转换为 None"""
         if v == "" or v is None:
             return None
+        return v
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status(cls, v):
+        """验证 status 字段，将无效值转换为默认值"""
+        if v not in ("work", "disabled"):
+            logger.warning(f"收到无效的存储器状态值: '{v}'，将使用默认值 'disabled'")
+            return "disabled"
         return v
 
     @model_validator(mode="before")
