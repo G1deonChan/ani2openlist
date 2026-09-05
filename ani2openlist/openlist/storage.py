@@ -64,10 +64,21 @@ class OpenlistStorage(BaseModel):
             return "disabled"
         return v
 
-    @model_validator(mode="before")
-    def check_status(cls, values: dict) -> dict:
-        status = values.get("status")
-        disabled = values.get("disabled")
-        if (disabled and status == "work") or (not disabled and status == "disabled"):
-            raise ValueError(f"存储器状态错误，{status=}, {disabled=}")
-        return values
+    @model_validator(mode="after")
+    def normalize_status(self):
+        status_set = "status" in self.model_fields_set
+        disabled_set = "disabled" in self.model_fields_set
+
+        if status_set and not disabled_set:
+            self.disabled = self.status == "disabled"
+        elif disabled_set and not status_set:
+            self.status = "disabled" if self.disabled else "work"
+        elif status_set and disabled_set:
+            expected_status = "disabled" if self.disabled else "work"
+            if self.status != expected_status:
+                logger.warning(
+                    "收到不一致的存储器状态，已自动修正: "
+                    f"status='{self.status}', disabled={self.disabled}"
+                )
+                self.status = expected_status
+        return self
