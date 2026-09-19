@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ani2openlist"
-version = "1.0.0"
+version = "1.1.1"
 description = "从 Bangumi 同步动漫信息到 Openlist，自动整理动漫文件"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -18,16 +18,20 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 
 dependencies = [
-    "requests>=2.28.0",
+    "feedparser==6.0.11",
+    "httpx[http2]==0.27.2",
+    "pydantic>=2.9.2",
     "pyyaml>=6.0",
-    "loguru>=0.6.0",
+    "Flask>=3.0.0",
+    "APScheduler>=3.10.0",
 ]
 
 [project.optional-dependencies]
@@ -40,20 +44,25 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/ani2openlist"
-Documentation = "https://github.com/yourusername/ani2openlist#readme"
-Repository = "https://github.com/yourusername/ani2openlist"
-"Bug Tracker" = "https://github.com/yourusername/ani2openlist/issues"
+Homepage = "https://github.com/G1deonChan/ani2openlist"
+Documentation = "https://github.com/G1deonChan/ani2openlist#readme"
+Repository = "https://github.com/G1deonChan/ani2openlist"
+"Bug Tracker" = "https://github.com/G1deonChan/ani2openlist/issues"
 
 [tool.setuptools]
-packages = ["app", "app.core", "app.modules", "app.modules.ani2openlist", "app.modules.openlist", "app.modules.openlist.v3", "app.utils"]
+packages = [
+    "ani2openlist",
+    "ani2openlist.core",
+    "ani2openlist.openlist",
+    "ani2openlist.utils",
+]
 
 [tool.black]
 line-length = 100
-target-version = ['py38', 'py39', 'py310', 'py311']
+target-version = ['py310', 'py311', 'py312', 'py313', 'py314']
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
@@ -63,4 +72,4 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-addopts = "-v --cov=app --cov-report=term-missing"
+addopts = "-v --cov=ani2openlist --cov-report=term-missing"

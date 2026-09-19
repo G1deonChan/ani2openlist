@@ -1,111 +1,63 @@
-"""
-ani2openlist 模块测试
-"""
+"""Ani2Openlist 的基础行为测试。"""
 import unittest
-from unittest.mock import Mock, patch, MagicMock
-from app.modules.ani2openlist import Ani2Openlist
+from unittest.mock import patch
+
+from ani2openlist import Ani2Openlist, Config
 
 
 class TestAni2Openlist(unittest.TestCase):
-    """Ani2Openlist 测试类"""
+    """Ani2Openlist 初始化和配置测试。"""
 
-    def setUp(self):
-        """测试前准备"""
-        self.config = {
-            'ani': {
-                'base_url': 'https://api.bgm.tv',
-                'enable': True
-            },
-            'openlist': {
-                'base_url': 'http://localhost:5244',
-                'token': 'test_token',
-                'root_path': '/anime'
+    @staticmethod
+    def make_config() -> Config:
+        return Config(
+            {
+                "openlist": {
+                    "url": "http://localhost:5244",
+                    "token": "test_token",
+                    "target_dir": "/anime/",
+                },
+                "ani": {"rss_update": True},
             }
-        }
+        )
 
-    @patch('app.modules.ani2openlist.ani2openlist.OpenlistClient')
-    def test_init(self, mock_openlist_client):
-        """测试初始化"""
-        ani2openlist = Ani2Openlist(self.config)
-        self.assertIsNotNone(ani2openlist)
-        mock_openlist_client.assert_called_once()
+    @patch("ani2openlist.ani2openlist.OpenlistClient")
+    def test_init_uses_config_and_normalizes_target_dir(self, mock_openlist_client):
+        """配置对象应覆盖默认值，目标目录只保留一个前导斜杠。"""
+        ani2openlist = Ani2Openlist(config=self.make_config())
 
-    @patch('app.modules.ani2openlist.ani2openlist.OpenlistClient')
-    @patch('app.modules.ani2openlist.ani2openlist.HttpClient')
-    def test_search_anime(self, mock_http_client, mock_openlist_client):
-        """测试搜索动漫"""
-        # Mock HTTP 响应
-        mock_response = {
-            'list': [
-                {
-                    'id': 12345,
-                    'name': '测试动漫',
-                    'name_cn': '测试动漫中文名',
-                    'type': 2
-                }
-            ]
-        }
-        
-        mock_http_instance = Mock()
-        mock_http_instance.get.return_value = mock_response
-        mock_http_client.return_value = mock_http_instance
+        mock_openlist_client.assert_called_once_with(
+            "http://localhost:5244", "", "", "test_token"
+        )
+        self.assertEqual(ani2openlist._Ani2Openlist__target_dir, "/anime")
 
-        ani2openlist = Ani2Openlist(self.config)
-        results = ani2openlist.search('测试动漫')
-        
-        self.assertIsNotNone(results)
-        self.assertIsInstance(results, list)
+    @patch("ani2openlist.ani2openlist.OpenlistClient")
+    def test_explicit_arguments_work_without_config(self, mock_openlist_client):
+        """不使用配置对象时应保留显式构造参数。"""
+        Ani2Openlist(
+            url="https://openlist.example",
+            username="user",
+            password="password",
+            target_dir="/media/anime",
+            rss_update=False,
+            year=2024,
+            month=10,
+        )
 
-    @patch('app.modules.ani2openlist.ani2openlist.OpenlistClient')
-    def test_organize_files(self, mock_openlist_client):
-        """测试文件整理"""
-        mock_openlist_instance = Mock()
-        mock_openlist_client.return_value = mock_openlist_instance
-
-        ani2openlist = Ani2Openlist(self.config)
-        
-        # Mock list_files 返回值
-        mock_openlist_instance.list_files.return_value = [
-            {'name': 'test.mkv', 'is_dir': False}
-        ]
-
-        # 测试整理功能
-        result = ani2openlist.organize('/test/path')
-        self.assertIsNotNone(result)
+        mock_openlist_client.assert_called_once_with(
+            "https://openlist.example", "user", "password", ""
+        )
 
 
-class TestAni2OpenlistIntegration(unittest.TestCase):
-    """集成测试"""
+class TestConfig(unittest.TestCase):
+    """点号路径配置读取测试。"""
 
-    def setUp(self):
-        """测试前准备"""
-        self.config = {
-            'ani': {
-                'base_url': 'https://api.bgm.tv',
-                'enable': True
-            },
-            'openlist': {
-                'base_url': 'http://localhost:5244',
-                'token': 'test_token',
-                'root_path': '/anime'
-            }
-        }
+    def test_nested_value_and_default(self):
+        config = Config({"openlist": {"url": "http://localhost"}})
 
-    @patch('app.modules.ani2openlist.ani2openlist.OpenlistClient')
-    @patch('app.modules.ani2openlist.ani2openlist.HttpClient')
-    def test_full_workflow(self, mock_http_client, mock_openlist_client):
-        """测试完整工作流程"""
-        # Mock 所有必要的响应
-        mock_http_instance = Mock()
-        mock_http_client.return_value = mock_http_instance
-        
-        mock_openlist_instance = Mock()
-        mock_openlist_client.return_value = mock_openlist_instance
-
-        ani2openlist = Ani2Openlist(self.config)
-        
-        # 这里可以测试完整的工作流程
-        self.assertIsNotNone(ani2openlist)
+        self.assertEqual(config.get("openlist.url"), "http://localhost")
+        self.assertEqual(config.get("openlist.token", "fallback"), "fallback")
+        self.assertEqual(config.get("missing.value", "fallback"), "fallback")
 
 
 if __name__ == '__main__':
