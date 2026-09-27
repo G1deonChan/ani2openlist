@@ -1,5 +1,5 @@
 from asyncio import sleep as async_sleep
-from typing import Type, Callable, ParamSpec, TypeVar, Optional, Awaitable
+from typing import Type, Callable, ParamSpec, TypeVar, Awaitable
 from time import sleep
 from functools import wraps
 import logging
@@ -32,7 +32,7 @@ class Retry(metaclass=Singleton):
         tries: int = TRIES,
         delay: int = DELAY,
         backoff: int = BACKOFF,
-    ) -> Callable[[Callable[P, R]], Callable[P, Optional[R]]]:
+    ) -> Callable[[Callable[P, R]], Callable[P, R]]:
         """
         同步重试装饰器
 
@@ -42,9 +42,12 @@ class Retry(metaclass=Singleton):
         :param backoff: 延迟倍数
         """
 
-        def inner(func: Callable[P, R]) -> Callable[P, Optional[R]]:
+        if tries < 1:
+            raise ValueError(f"最大重试次数必须大于等于 1，当前为：{tries}")
+
+        def inner(func: Callable[P, R]) -> Callable[P, R]:
             @wraps(func)
-            def wrapper(*args, **kwargs) -> Optional[R]:
+            def wrapper(*args, **kwargs) -> R:
                 remaining_retries = tries
                 while remaining_retries > 0:
                     try:
@@ -57,7 +60,9 @@ class Retry(metaclass=Singleton):
                             sleep(_delay)
                         else:
                             logger.error(cls.ERROR_MSG.format(e))
-                            return None
+                            # 重试耗尽后向上抛出异常，避免返回 None 导致调用方
+                            # 出现 "'NoneType' object has no attribute ..." 之类的二次错误
+                            raise
 
             return wrapper
 
@@ -70,7 +75,7 @@ class Retry(metaclass=Singleton):
         tries: int = TRIES,
         delay: int = DELAY,
         backoff: int = BACKOFF,
-    ) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[Optional[R]]]]:
+    ) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
         """
         异步重试装饰器
 
@@ -80,11 +85,14 @@ class Retry(metaclass=Singleton):
         :param backoff: 延迟倍数
         """
 
+        if tries < 1:
+            raise ValueError(f"最大重试次数必须大于等于 1，当前为：{tries}")
+
         def inner(
             func: Callable[P, Awaitable[R]],
-        ) -> Callable[P, Awaitable[Optional[R]]]:
+        ) -> Callable[P, Awaitable[R]]:
             @wraps(func)
-            async def wrapper(*args, **kwargs) -> Optional[R]:
+            async def wrapper(*args, **kwargs) -> R:
                 remaining_retries = tries
                 while remaining_retries > 0:
                     try:
@@ -97,7 +105,9 @@ class Retry(metaclass=Singleton):
                             await async_sleep(_delay)
                         else:
                             logger.error(cls.ERROR_MSG.format(e))
-                            return None
+                            # 重试耗尽后向上抛出异常，避免返回 None 导致调用方
+                            # 出现 "'NoneType' object has no attribute ..." 之类的二次错误
+                            raise
 
             return wrapper
 

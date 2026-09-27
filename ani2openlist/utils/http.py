@@ -2,7 +2,7 @@ from typing import Any, Literal, overload
 from collections.abc import Coroutine
 from weakref import WeakSet
 
-from httpx import AsyncClient, Client, Response, TimeoutException
+from httpx import AsyncClient, Client, Response, TimeoutException, TransportError
 
 from ani2openlist.utils.url import URLUtils
 from ani2openlist.utils.retry import Retry
@@ -15,7 +15,7 @@ class HTTPClient:
 
     # 默认请求头
     HEADERS: dict[str, str] = {
-        "User-Agent": "Ani2Openlist/1.1.1",
+        "User-Agent": "Ani2Openlist/1.1.2",
         "Accept": "application/json",
     }
 
@@ -53,10 +53,12 @@ class HTTPClient:
         if self.__async_client:
             await self.__async_client.aclose()
 
-    @Retry.sync_retry(TimeoutException, tries=3, delay=1, backoff=2)
-    def _sync_request(self, method: str, url: str, **kwargs) -> Response | None:
+    @Retry.sync_retry(TransportError, tries=3, delay=1, backoff=2)
+    def _sync_request(self, method: str, url: str, **kwargs) -> Response:
         """
         发起同步 HTTP 请求
+
+        重试耗尽后会抛出异常，不会返回 None
         """
         try:
             return self.__sync_client.request(method, url, **kwargs)
@@ -65,10 +67,12 @@ class HTTPClient:
             self.__new_sync_client()
             raise TimeoutException(f"HTTP 请求超时：{e}")
 
-    @Retry.async_retry(TimeoutException, tries=3, delay=1, backoff=2)
-    async def _async_request(self, method: str, url: str, **kwargs) -> Response | None:
+    @Retry.async_retry(TransportError, tries=3, delay=1, backoff=2)
+    async def _async_request(self, method: str, url: str, **kwargs) -> Response:
         """
         发起异步 HTTP 请求
+
+        重试耗尽后会抛出异常，不会返回 None
         """
         try:
             return await self.__async_client.request(method, url, **kwargs)
@@ -80,12 +84,12 @@ class HTTPClient:
     @overload
     def request(
         self, method: str, url: str, *, sync: Literal[True], **kwargs
-    ) -> Response | None: ...
+    ) -> Response: ...
 
     @overload
     def request(
         self, method: str, url: str, *, sync: Literal[False] = False, **kwargs
-    ) -> Coroutine[Any, Any, Response | None]: ...
+    ) -> Coroutine[Any, Any, Response]: ...
 
     def request(
         self,
@@ -94,7 +98,7 @@ class HTTPClient:
         *,
         sync: Literal[True, False] = False,
         **kwargs,
-    ) -> Response | None | Coroutine[Any, Any, Response | None]:
+    ) -> Response | Coroutine[Any, Any, Response]:
         """
         发起 HTTP 请求
 
@@ -112,12 +116,12 @@ class HTTPClient:
             return self._async_request(method, url, **kwargs)
 
     @overload
-    def get(self, url: str, *, sync: Literal[True], **kwargs) -> Response | None: ...
+    def get(self, url: str, *, sync: Literal[True], **kwargs) -> Response: ...
 
     @overload
     def get(
         self, url: str, *, sync: Literal[False], **kwargs
-    ) -> Coroutine[Any, Any, Response | None]: ...
+    ) -> Coroutine[Any, Any, Response]: ...
 
     def get(
         self,
@@ -126,7 +130,7 @@ class HTTPClient:
         sync: Literal[True, False] = False,
         params: dict = {},
         **kwargs,
-    ) -> Response | None | Coroutine[Any, Any, Response | None]:
+    ) -> Response | Coroutine[Any, Any, Response]:
         """
         发送 GET 请求
 
@@ -139,12 +143,12 @@ class HTTPClient:
         return self.request("get", url, sync=sync, params=params, **kwargs)
 
     @overload
-    def post(self, url: str, *, sync: Literal[True], **kwargs) -> Response | None: ...
+    def post(self, url: str, *, sync: Literal[True], **kwargs) -> Response: ...
 
     @overload
     def post(
         self, url: str, *, sync: Literal[False], **kwargs
-    ) -> Coroutine[Any, Any, Response] | None: ...
+    ) -> Coroutine[Any, Any, Response]: ...
 
     def post(
         self,
@@ -154,7 +158,7 @@ class HTTPClient:
         data: Any = None,
         json: dict = {},
         **kwargs,
-    ) -> Response | None | Coroutine[Any, Any, Response | None]:
+    ) -> Response | Coroutine[Any, Any, Response]:
         """
         发送 POST 请求
 
@@ -201,18 +205,18 @@ class RequestUtils:
     @classmethod
     def request(
         cls, method: str, url: str, sync: Literal[True], **kwargs
-    ) -> Response | None: ...
+    ) -> Response: ...
 
     @overload
     @classmethod
     def request(
         cls, method: str, url: str, sync: Literal[False] = False, **kwargs
-    ) -> Coroutine[Any, Any, Response | None]: ...
+    ) -> Coroutine[Any, Any, Response]: ...
 
     @classmethod
     def request(
         cls, method: str, url: str, sync: Literal[True, False] = False, **kwargs
-    ) -> Response | None | Coroutine[Any, Any, Response | None]:
+    ) -> Response | Coroutine[Any, Any, Response]:
         """
         发起 HTTP 请求
         """
@@ -221,13 +225,13 @@ class RequestUtils:
 
     @overload
     @classmethod
-    def get(cls, url: str, *, sync: Literal[True], **kwargs) -> Response | None: ...
+    def get(cls, url: str, *, sync: Literal[True], **kwargs) -> Response: ...
 
     @overload
     @classmethod
     def get(
         cls, url: str, *, sync: Literal[False] = False, **kwargs
-    ) -> Coroutine[Any, Any, Response | None]: ...
+    ) -> Coroutine[Any, Any, Response]: ...
 
     @classmethod
     def get(
@@ -237,7 +241,7 @@ class RequestUtils:
         sync: Literal[True, False] = False,
         params: dict = {},
         **kwargs,
-    ) -> Response | None | Coroutine[Any, Any, Response | None]:
+    ) -> Response | Coroutine[Any, Any, Response]:
         """
         发送 GET 请求
 
@@ -250,7 +254,7 @@ class RequestUtils:
 
     @overload
     @classmethod
-    def post(cls, url: str, *, sync: Literal[True], **kwargs) -> Response | None: ...
+    def post(cls, url: str, *, sync: Literal[True], **kwargs) -> Response: ...
 
     @overload
     @classmethod
@@ -262,7 +266,7 @@ class RequestUtils:
         data: Any = None,
         json: dict = {},
         **kwargs,
-    ) -> Coroutine[Any, Any, Response | None]: ...
+    ) -> Coroutine[Any, Any, Response]: ...
 
     @classmethod
     def post(
@@ -273,7 +277,7 @@ class RequestUtils:
         data: Any = None,
         json: dict = {},
         **kwargs,
-    ) -> Response | None | Coroutine[Any, Any, Response | None]:
+    ) -> Response | Coroutine[Any, Any, Response]:
         """
         发送 POST 请求
 

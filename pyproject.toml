@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ani2openlist"
-version = "1.1.1"
+version = "1.1.2"
 description = "从 Bangumi 同步动漫信息到 Openlist，自动整理动漫文件"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -145,11 +145,11 @@ webui/schedule.yaml
 webui/*.db
 webui/instance/
 
-# Test scripts and files
-test_*.py
-test_*.sh
-test_*.ps1
-*_test.py
-quickstart.py
-check_privacy.py
-rename_to_openlist.py
+# Test scripts and files（仅限仓库根目录的临时调试脚本，不影响 tests/ 目录）
+/test_*.py
+/test_*.sh
+/test_*.ps1
+/*_test.py
+/quickstart.py
+/check_privacy.py
+/rename_to_openlist.py
