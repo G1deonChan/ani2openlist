@@ -5,7 +5,7 @@ from time import time
 from httpx import Response
 
 from ani2openlist.core.logger import logger
-from ani2openlist.utils.http import RequestUtils
+from ani2openlist.utils.http import DEFAULT_TIMEOUT, RequestUtils, validate_timeout
 from ani2openlist.utils.multiton import Multiton
 from ani2openlist.openlist.path import OpenlistPath
 from ani2openlist.openlist.storage import OpenlistStorage
@@ -22,6 +22,7 @@ class OpenlistClient(metaclass=Multiton):
         username: str = "",
         password: str = "",
         token: str = "",
+        http_timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
         """
         OpenlistClient 类初始化
@@ -32,10 +33,11 @@ class OpenlistClient(metaclass=Multiton):
         :param token: Openlist 永久令牌
         """
 
+        self.__http_timeout = validate_timeout(http_timeout)
         if (username == "" or password == "") and token == "":
             raise ValueError("用户名及密码为空或令牌 Token 为空")
 
-        self.__client = RequestUtils.get_client()
+        self.__client = RequestUtils.get_client(timeout=self.__http_timeout)
         self.__token = {
             "token": "",  # 令牌 token str
             "expires": 0,  # 令牌过期时间（时间戳，-1为永不过期） int
@@ -77,6 +79,7 @@ class OpenlistClient(metaclass=Multiton):
             headers = kwargs.get("headers", {})
             headers["Authorization"] = self.__get_token
             kwargs["headers"] = headers
+        kwargs.setdefault("timeout", self.__http_timeout)
         return await self.__client.request(method, url, **kwargs, sync=False)
 
     async def __get(self, url: str, auth: bool = True, **kwargs) -> Response:
@@ -144,7 +147,9 @@ class OpenlistClient(metaclass=Multiton):
         """
 
         json = {"username": self.username, "password": self.__password}
-        resp = self.__client.post(self.url + "/api/auth/login", json=json, sync=True)
+        resp = self.__client.post(
+            self.url + "/api/auth/login", json=json, timeout=self.__http_timeout, sync=True
+        )
         if resp.status_code != 200:
             raise RuntimeError(f"更新令牌请求发送失败，状态码：{resp.status_code}")
 
@@ -163,7 +168,9 @@ class OpenlistClient(metaclass=Multiton):
         """
 
         headers = {"Authorization": self.__get_token}
-        resp = self.__client.get(self.url + "/api/me", headers=headers, sync=True)
+        resp = self.__client.get(
+            self.url + "/api/me", headers=headers, timeout=self.__http_timeout, sync=True
+        )
 
         if resp.status_code != 200:
             raise RuntimeError(f"获取用户信息请求发送失败，状态码：{resp.status_code}")

@@ -36,6 +36,17 @@ ani:
   # ANI Open 项目 RSS 域名（可自行反代）
   rss_domain: "api.ani.rip"
 
+  # 可选：手动季度/关键字扫描通过 FlareSolverr 获取源站目录。
+  # 源站仍需提供 POST 目录接口；RSS 模式不使用此设置。
+  flaresolverr_url: ""  # 例如 http://flaresolverr:8191 或 http://127.0.0.1:8191/v1
+  flaresolverr_timeout: 60000  # 毫秒
+  # 下载/播放域名，与扫描源站分开；留空沿用 src_domain。
+  resource_domain: ""  # 例如 resources.ani.rip，不含 https://
+
+# 普通 HTTP 请求配置（Openlist、RSS、直连目录）
+http:
+  timeout: 30  # 秒；必须大于 0。FlareSolverr 使用独立超时设置。
+
 # 日志配置
 logging:
   # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL

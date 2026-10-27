@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ani2openlist import Ani2Openlist, load_config, Config
 from ani2openlist.core.logger import logger
-from ani2openlist.utils.http import RequestUtils
+from ani2openlist.utils.http import DEFAULT_TIMEOUT, RequestUtils, validate_timeout
 from ani2openlist.utils.multiton import Multiton
 
 app = Flask(__name__)
@@ -281,11 +281,23 @@ def get_config():
 def save_config():
     """保存配置"""
     try:
-        config_data = request.json
+        config_data = request.get_json(silent=True)
+        if not isinstance(config_data, dict):
+            return jsonify({'error': '请求必须是 JSON 配置对象'}), 400
         
         # 验证必需字段
         if 'openlist' not in config_data:
             return jsonify({'error': '缺少 openlist 配置'}), 400
+
+        http_config = config_data.get('http', {})
+        if not isinstance(http_config, dict):
+            return jsonify({'error': 'http 必须是配置对象'}), 400
+        try:
+            timeout = validate_timeout(http_config.get('timeout', DEFAULT_TIMEOUT))
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        if 'timeout' in http_config:
+            http_config['timeout'] = timeout
         
         # 保存配置
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:

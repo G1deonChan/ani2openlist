@@ -27,7 +27,7 @@ class TestAni2Openlist(unittest.TestCase):
         ani2openlist = Ani2Openlist(config=self.make_config())
 
         mock_openlist_client.assert_called_once_with(
-            "http://localhost:5244", "", "", "test_token"
+            "http://localhost:5244", "", "", "test_token", http_timeout=30.0
         )
         self.assertEqual(ani2openlist._Ani2Openlist__target_dir, "/anime")
 
@@ -45,7 +45,7 @@ class TestAni2Openlist(unittest.TestCase):
         )
 
         mock_openlist_client.assert_called_once_with(
-            "https://openlist.example", "user", "password", ""
+            "https://openlist.example", "user", "password", "", http_timeout=30.0
         )
 
 

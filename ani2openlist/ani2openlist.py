@@ -1,11 +1,13 @@
 from typing import Final
 from datetime import datetime
+from urllib.parse import urlsplit, urlunsplit
 
 from feedparser import parse  # type:ignore
 
 from ani2openlist.core.logger import logger
 from ani2openlist.core.config import Config
-from ani2openlist.utils.http import RequestUtils
+from ani2openlist.utils.http import DEFAULT_TIMEOUT, RequestUtils, validate_timeout
+from ani2openlist.utils.flaresolverr import FlareSolverrDirectory
 from ani2openlist.utils.url import URLUtils
 from ani2openlist.utils.openlist import OpenlistUtils
 from ani2openlist.openlist.client import OpenlistClient
@@ -37,6 +39,10 @@ class Ani2Openlist:
         rss_domain: str = "api.ani.rip",
         key_word: str | None = None,
         config: Config | None = None,
+        flaresolverr_url: str = "",
+        flaresolverr_timeout: int = 60000,
+        resource_domain: str = "",
+        http_timeout: float = DEFAULT_TIMEOUT,
         **_,
     ) -> None:
         """
@@ -54,6 +60,10 @@ class Ani2Openlist:
         :param rss_domain: ANI Open 项目 RSS 地址，默认为 "api.ani.rip"，可自行反代
         :param key_word: 自定义关键字，默认为空
         :param config: Config 对象，如果提供将覆盖其他参数
+        :param flaresolverr_url: 可选 FlareSolverr 地址，仅用于手动目录扫描
+        :param flaresolverr_timeout: 浏览器请求超时，单位毫秒
+        :param resource_domain: 手动扫描生成链接时使用的资源域名（不含协议）
+        :param http_timeout: 普通 HTTP 请求超时，单位秒，默认为 30
         """
 
         # 如果提供了配置对象，优先使用配置文件中的值
@@ -69,8 +79,19 @@ class Ani2Openlist:
             src_domain = config.get("ani.src_domain", src_domain)
             rss_domain = config.get("ani.rss_domain", rss_domain)
             key_word = config.get("ani.key_word", key_word)
+            flaresolverr_url = config.get("ani.flaresolverr_url", flaresolverr_url)
+            flaresolverr_timeout = config.get("ani.flaresolverr_timeout", flaresolverr_timeout)
+            resource_domain = config.get("ani.resource_domain", resource_domain)
+            http_config = config.get_all().get("http", {})
+            if not isinstance(http_config, dict):
+                raise ValueError("http 必须是配置对象")
+            if "timeout" in http_config:
+                http_timeout = http_config["timeout"]
 
-        self.client = OpenlistClient(url, username, password, token)
+        self.__http_timeout = validate_timeout(http_timeout)
+        self.client = OpenlistClient(
+            url, username, password, token, http_timeout=self.__http_timeout
+        )
         self.__target_dir = "/" + target_dir.strip("/")
 
         self.__year: int | None = None
@@ -93,6 +114,14 @@ class Ani2Openlist:
 
         self.__src_domain = src_domain.strip()
         self.__rss_domain = rss_domain.strip()
+        self.__flaresolverr_url = flaresolverr_url.strip()
+        self.__flaresolverr_timeout = flaresolverr_timeout
+        self.__resource_domain = resource_domain.strip()
+        if self.__resource_domain and (
+            any(c in self.__resource_domain for c in "/?#@")
+            or any(c.isspace() for c in self.__resource_domain)
+        ):
+            raise ValueError("resource_domain must be a hostname without scheme or path")
 
     async def run(self) -> None:
         is_valid, error_msg = self.__is_valid()
@@ -178,16 +207,18 @@ class Ani2Openlist:
             dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
             return int(dt.timestamp())
 
-        async def update_data(_url: str, _url_dict: dict):
+        async def update_data(_url: str, _url_dict: dict, solver=None):
             """
             用于递归更新解析数据
             """
             logger.debug(f"请求地址：{_url}")
-            _resp = await RequestUtils.post(_url)
-            if _resp.status_code != 200:
-                raise Exception(f"请求发送失败，状态码：{_resp.status_code}")
-
-            _result = _resp.json()
+            if solver is not None:
+                _result = await solver.directory(_url)
+            else:
+                _resp = await RequestUtils.post(_url, timeout=self.__http_timeout)
+                if _resp.status_code != 200:
+                    raise Exception(f"请求发送失败，状态码：{_resp.status_code}")
+                _result = _resp.json()
 
             for file in _result["files"]:
                 mimeType: str = file["mimeType"]
@@ -200,6 +231,9 @@ class Ani2Openlist:
                         __parse2timestamp(file["createdTime"])
                     )
                     __url = _url + quoted_name + "?d=true"
+                    if self.__resource_domain:
+                        parts = urlsplit(__url)
+                        __url = urlunsplit(("https", self.__resource_domain, parts.path, parts.query, ""))
                     logger.debug(
                         f"获取文件：{name}，文件大小：{int(size) / 1024 / 1024:.2f}MB，播放地址：{__url}"
                     )
@@ -212,14 +246,22 @@ class Ani2Openlist:
                     logger.debug(f"获取目录：{name}")
                     if name not in _url_dict:
                         _url_dict[name] = {}
-                    await update_data(_url + quoted_name + "/", _url_dict[name])
+                    await update_data(_url + quoted_name + "/", _url_dict[name], solver)
                 else:
                     logger.warning(f"无法识别类型：{mimeType}，文件详情：{file}")
 
         key = get_key()
         if key not in url_dict:
             url_dict[key] = {}
-        await update_data(f"https://{self.__src_domain}/{key}/", url_dict[key])
+        directory_url = f"https://{self.__src_domain}/{key}/"
+        if self.__flaresolverr_url:
+            async with FlareSolverrDirectory(
+                self.__flaresolverr_url, self.__flaresolverr_timeout
+            ) as solver:
+                await solver.warmup(f"https://{self.__src_domain}/")
+                await update_data(directory_url, url_dict[key], solver)
+        else:
+            await update_data(directory_url, url_dict[key])
         return
 
     async def update_rss_anime_dict(self, url_dict: dict):
@@ -288,7 +330,9 @@ class Ani2Openlist:
             number, unit = [string.strip() for string in size_str.split()]
             return int(float(number) * units[unit])
 
-        resp = await RequestUtils.get(f"https://{self.__rss_domain}/ani-download.xml")
+        resp = await RequestUtils.get(
+            f"https://{self.__rss_domain}/ani-download.xml", timeout=self.__http_timeout
+        )
         if resp.status_code != 200:
             raise Exception(f"请求发送失败，状态码：{resp.status_code}")
         feeds = parse(resp.text)

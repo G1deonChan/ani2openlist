@@ -141,6 +141,12 @@ logs/
 config.yaml
 webui/schedule.yaml
 
+# Local diagnostics, captured responses, crawl exports and deployment backups
+/MANUAL_MODE_DIAGNOSIS.md
+/*.tmp
+/exports/
+/worker/backups/
+
 # Web UI session data
 webui/*.db
 webui/instance/

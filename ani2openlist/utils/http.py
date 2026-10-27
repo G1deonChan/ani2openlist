@@ -1,11 +1,69 @@
+import math
 from typing import Any, Literal, overload
 from collections.abc import Coroutine
+from urllib.parse import urlsplit, urlunsplit
 from weakref import WeakSet
 
-from httpx import AsyncClient, Client, Response, TimeoutException, TransportError
+from httpx import (
+    AsyncClient,
+    Client,
+    Request,
+    Response,
+    Timeout,
+    TimeoutException,
+    TransportError,
+)
 
 from ani2openlist.utils.url import URLUtils
 from ani2openlist.utils.retry import Retry
+
+
+DEFAULT_TIMEOUT = 30.0
+
+
+def validate_timeout(value: Any) -> float:
+    """Return a finite, positive timeout in seconds."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("http.timeout 必须是大于 0 的有限秒数")
+    timeout = float(value)
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("http.timeout 必须是大于 0 的有限秒数")
+    return timeout
+
+
+def _safe_request_url(url: str) -> str:
+    """Keep enough context for diagnosis without logging credentials or queries."""
+    parsed = urlsplit(url)
+    host = parsed.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    try:
+        if parsed.port is not None:
+            host = f"{host}:{parsed.port}"
+    except ValueError:
+        pass
+    return urlunsplit((parsed.scheme, host, parsed.path, "", ""))
+
+
+def _timeout_description(timeout: Any) -> str:
+    if isinstance(timeout, Timeout):
+        values = timeout.as_dict()
+        return ", ".join(f"{name}={value:g} 秒" for name, value in values.items())
+    if timeout is None:
+        return "未设置时限"
+    return f"{timeout:g} 秒"
+
+
+def _timeout_error(error: TimeoutException, method: str, url: str, timeout: Any) -> TimeoutException:
+    message = (
+        f"HTTP 请求超时：{type(error).__name__}，{method.upper()} "
+        f"{_safe_request_url(url)}，超时设置：{_timeout_description(timeout)}"
+    )
+    try:
+        request = error.request
+    except RuntimeError:
+        request = Request(method, _safe_request_url(url))
+    return type(error)(message, request=request)
 
 
 class HTTPClient:
@@ -15,15 +73,16 @@ class HTTPClient:
 
     # 默认请求头
     HEADERS: dict[str, str] = {
-        "User-Agent": "Ani2Openlist/1.1.2",
+        "User-Agent": "Ani2Openlist/1.2.0",
         "Accept": "application/json",
     }
 
-    def __init__(self):
+    def __init__(self, timeout: float = DEFAULT_TIMEOUT):
         """
         初始化 HTTP 客户端
         """
 
+        self.timeout = validate_timeout(timeout)
         self.__new_async_client()
         self.__new_sync_client()
 
@@ -31,13 +90,13 @@ class HTTPClient:
         """
         创建新的同步 HTTP 客户端
         """
-        self.__sync_client = Client(http2=True, follow_redirects=True, timeout=10)
+        self.__sync_client = Client(http2=True, follow_redirects=True, timeout=self.timeout)
 
     def __new_async_client(self):
         """
         创建新的异步 HTTP 客户端
         """
-        self.__async_client = AsyncClient(http2=True, follow_redirects=True, timeout=10)
+        self.__async_client = AsyncClient(http2=True, follow_redirects=True, timeout=self.timeout)
 
     def close_sync_client(self) -> None:
         """
@@ -65,7 +124,7 @@ class HTTPClient:
         except TimeoutException as e:
             self.close_sync_client()
             self.__new_sync_client()
-            raise TimeoutException(f"HTTP 请求超时：{e}")
+            raise _timeout_error(e, method, url, kwargs.get("timeout", self.timeout)) from e
 
     @Retry.async_retry(TransportError, tries=3, delay=1, backoff=2)
     async def _async_request(self, method: str, url: str, **kwargs) -> Response:
@@ -79,7 +138,7 @@ class HTTPClient:
         except TimeoutException as e:
             await self.close_async_client()
             self.__new_async_client()
-            raise TimeoutException(f"HTTP 请求超时：{e}")
+            raise _timeout_error(e, method, url, kwargs.get("timeout", self.timeout)) from e
 
     @overload
     def request(
@@ -182,7 +241,7 @@ class RequestUtils:
     __client_list: WeakSet[HTTPClient] = WeakSet()
 
     @classmethod
-    def get_client(cls, url: str = "") -> HTTPClient:
+    def get_client(cls, url: str = "", timeout: float | None = None) -> HTTPClient:
         """
         获取 HTTP 客户端
 
@@ -194,10 +253,15 @@ class RequestUtils:
             _, domain, port = URLUtils.get_resolve_url(url)
             key = f"{domain}:{port}"
             if key not in cls.__clients:
-                cls.__clients[key] = HTTPClient()
+                cls.__clients[key] = HTTPClient(
+                    DEFAULT_TIMEOUT if timeout is None else timeout
+                )
+            elif timeout is not None:
+                # Refresh only when a caller explicitly supplies a timeout.
+                cls.__clients[key].timeout = validate_timeout(timeout)
             return cls.__clients[key]
 
-        client = HTTPClient()
+        client = HTTPClient(DEFAULT_TIMEOUT if timeout is None else timeout)
         cls.__client_list.add(client)
         return client
 
@@ -220,7 +284,7 @@ class RequestUtils:
         """
         发起 HTTP 请求
         """
-        client = cls.get_client(url)
+        client = cls.get_client(url, timeout=kwargs.get("timeout"))
         return client.request(method, url, sync=sync, **kwargs)
 
     @overload
@@ -292,13 +356,14 @@ class RequestUtils:
     @classmethod
     async def close_all_async_clients(cls) -> None:
         """
-        关闭所有异步 HTTP 客户端并清除缓存
+        关闭所有 HTTP 客户端并清除缓存
         用于清理资源，防止事件循环关闭时出现警告
         下次调用 get_client() 时会自动创建新的客户端
         """
-        # 关闭缓存的客户端
+        # 同步客户端没有绑定事件循环，也在这里一起关闭。
         for client in cls.__clients.values():
             try:
+                client.close_sync_client()
                 await client.close_async_client()
             except Exception:
                 pass
@@ -309,6 +374,7 @@ class RequestUtils:
         # 关闭弱引用集合中的客户端
         for client in list(cls.__client_list):
             try:
+                client.close_sync_client()
                 await client.close_async_client()
             except Exception:
                 pass

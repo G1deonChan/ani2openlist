@@ -263,8 +263,14 @@ python cli.py --keyword "2024-10"
 | month | int \| None | None | 动画季度（1, 4, 7, 10） |
 | src_domain | str | "aniopen.an-i.workers.dev" | ANI Open 项目地址 |
 | rss_domain | str | "api.ani.rip" | RSS 订阅地址 |
+| flaresolverr_url | str | "" | 可选 FlareSolverr 地址，仅用于手动目录扫描 |
+| flaresolverr_timeout | int | 60000 | FlareSolverr 浏览器请求超时（毫秒） |
+| resource_domain | str | "" | 手动扫描生成链接使用的资源域名，留空沿用源域名 |
+| http_timeout | float | 30 | 普通 HTTP 请求超时（秒） |
 | key_word | str \| None | None | 自定义关键字 |
 | config | Config \| None | None | Config 对象（优先使用） |
+
+FlareSolverr 会话、配置示例及源站兼容性限制见 [FlareSolverr 目录扫描](docs/FLARESOLVERR.md)。
 
 ## 项目结构
 

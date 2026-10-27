@@ -34,6 +34,9 @@ ani:
   src_domain: "aniopen.an-i.workers.dev"
   rss_domain: "api.ani.rip"
 
+http:
+  timeout: 30
+
 # 日志配置
 logging:
   level: "INFO"
@@ -64,6 +67,17 @@ logging:
 | key_word | string | 否 | 自定义关键字 | - |
 | src_domain | string | 否 | ANI Open 源域名 | aniopen.an-i.workers.dev |
 | rss_domain | string | 否 | RSS 域名 | api.ani.rip |
+
+### HTTP 请求配置 (http)
+
+| 配置项 | 类型 | 必填 | 说明 | 默认值 |
+|--------|------|------|------|--------|
+| timeout | number | 否 | 普通同步、异步请求超时（秒），必须为有限正数 | 30 |
+
+该设置用于 Openlist、RSS 和直连目录请求。单次请求的 `timeout` 参数优先；
+FlareSolverr 使用 `ani.flaresolverr_timeout`（毫秒），不受此设置影响。
+超时请求最多尝试三次，间隔为 2 秒和 4 秒。失败日志会记录请求方法、
+域名和路径、异常类型及有效超时，不记录查询参数或认证信息。
 
 ### 日志配置 (logging)
 

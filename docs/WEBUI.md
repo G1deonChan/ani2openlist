@@ -89,6 +89,7 @@ python webui_start.py
 - RSS 追更模式（开/关）
 - 手动模式：年份、季度、关键字
 - 源域名和 RSS 域名（可自定义反代）
+- 普通 HTTP 请求超时（秒，默认 30）
 
 **日志配置**
 - 日志级别（DEBUG/INFO/WARNING/ERROR）

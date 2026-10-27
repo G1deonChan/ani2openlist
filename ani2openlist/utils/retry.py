@@ -22,8 +22,8 @@ class Retry(metaclass=Singleton):
     DELAY: int = 3  # 默认延迟时间
     BACKOFF: int = 1  # 默认延迟倍数
 
-    WARNING_MSG: str = "{}，{}秒后重试 ..."
-    ERROR_MSG: str = "{}，超出最大重试次数！"
+    WARNING_MSG: str = "第 {}/{} 次请求失败：{}，{}秒后重试 ..."
+    ERROR_MSG: str = "第 {}/{} 次请求失败：{}，超出最大重试次数！"
 
     @classmethod
     def sync_retry(
@@ -56,10 +56,11 @@ class Retry(metaclass=Singleton):
                         remaining_retries -= 1
                         if remaining_retries > 0:
                             _delay = (tries - remaining_retries) * backoff * delay
-                            logger.warning(cls.WARNING_MSG.format(e, _delay))
+                            attempt = tries - remaining_retries
+                            logger.warning(cls.WARNING_MSG.format(attempt, tries, e, _delay))
                             sleep(_delay)
                         else:
-                            logger.error(cls.ERROR_MSG.format(e))
+                            logger.error(cls.ERROR_MSG.format(tries, tries, e))
                             # 重试耗尽后向上抛出异常，避免返回 None 导致调用方
                             # 出现 "'NoneType' object has no attribute ..." 之类的二次错误
                             raise
@@ -101,10 +102,11 @@ class Retry(metaclass=Singleton):
                         remaining_retries -= 1
                         if remaining_retries > 0:
                             _delay = (tries - remaining_retries) * backoff * delay
-                            logger.warning(cls.WARNING_MSG.format(e, _delay))
+                            attempt = tries - remaining_retries
+                            logger.warning(cls.WARNING_MSG.format(attempt, tries, e, _delay))
                             await async_sleep(_delay)
                         else:
-                            logger.error(cls.ERROR_MSG.format(e))
+                            logger.error(cls.ERROR_MSG.format(tries, tries, e))
                             # 重试耗尽后向上抛出异常，避免返回 None 导致调用方
                             # 出现 "'NoneType' object has no attribute ..." 之类的二次错误
                             raise

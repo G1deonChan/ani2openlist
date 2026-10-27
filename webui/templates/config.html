@@ -96,8 +96,31 @@
                    placeholder="api.ani.rip">
             <small style="color: #718096;">可自定义反代域名</small>
         </div>
+        <div class="form-group">
+            <label for="ani_flaresolverr_url">FlareSolverr 地址（可选）</label>
+            <input type="url" id="ani_flaresolverr_url" placeholder="http://flaresolverr:8191">
+            <small>仅手动目录扫描使用；留空使用原有直连方式。</small>
+        </div>
+        <div class="form-group">
+            <label for="ani_flaresolverr_timeout">FlareSolverr 超时（毫秒）</label>
+            <input type="number" id="ani_flaresolverr_timeout" min="1000" step="1" value="60000" required>
+        </div>
+        <div class="form-group">
+            <label for="ani_resource_domain">资源域名（可选，不含协议）</label>
+            <input type="text" id="ani_resource_domain" placeholder="resources.ani.rip">
+            <small>用于手动扫描生成的播放/下载链接；留空沿用源域名。</small>
+        </div>
     </div>
     
+    <div class="card">
+        <h3>HTTP 请求配置</h3>
+        <div class="form-group">
+            <label for="http_timeout">HTTP 请求超时（秒）</label>
+            <input type="number" id="http_timeout" min="0.001" step="any" value="30" required>
+            <small>适用于 Openlist、RSS 和直连目录请求；单次请求专用超时优先。</small>
+        </div>
+    </div>
+
     <div class="card">
         <h3>日志配置</h3>
         
@@ -177,8 +200,13 @@ async function loadConfig() {
             document.getElementById('ani_key_word').value = config.ani.key_word || '';
             document.getElementById('ani_src_domain').value = config.ani.src_domain || 'aniopen.an-i.workers.dev';
             document.getElementById('ani_rss_domain').value = config.ani.rss_domain || 'api.ani.rip';
+            document.getElementById('ani_flaresolverr_url').value = config.ani.flaresolverr_url || '';
+            document.getElementById('ani_flaresolverr_timeout').value = config.ani.flaresolverr_timeout ?? 60000;
+            document.getElementById('ani_resource_domain').value = config.ani.resource_domain || '';
         }
         
+        document.getElementById('http_timeout').value = config.http?.timeout ?? 30;
+
         // 填充日志配置
         if (config.logging) {
             document.getElementById('logging_level').value = config.logging.level || 'INFO';
@@ -194,6 +222,15 @@ async function loadConfig() {
 
 document.getElementById('config-form').addEventListener('submit', async function(e) {
     e.preventDefault();
+    if (!this.checkValidity()) {
+        this.reportValidity();
+        return;
+    }
+    const httpTimeout = Number(document.getElementById('http_timeout').value);
+    if (!Number.isFinite(httpTimeout) || httpTimeout <= 0) {
+        showAlert('HTTP 请求超时必须是大于 0 的有限秒数', 'error');
+        return;
+    }
     
     // 构建配置对象
     const config = {
@@ -207,7 +244,13 @@ document.getElementById('config-form').addEventListener('submit', async function
         ani: {
             rss_update: document.getElementById('ani_rss_update').checked,
             src_domain: document.getElementById('ani_src_domain').value,
-            rss_domain: document.getElementById('ani_rss_domain').value
+            rss_domain: document.getElementById('ani_rss_domain').value,
+            flaresolverr_url: document.getElementById('ani_flaresolverr_url').value,
+            flaresolverr_timeout: Number(document.getElementById('ani_flaresolverr_timeout').value),
+            resource_domain: document.getElementById('ani_resource_domain').value
+        },
+        http: {
+            timeout: httpTimeout
         },
         logging: {
             level: document.getElementById('logging_level').value,

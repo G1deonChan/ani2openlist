@@ -149,5 +149,118 @@ class TestHTTPClientNeverReturnsNone(unittest.TestCase):
         client.close_sync_client()
 
 
+class TestHTTPTimeout(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.client = HTTPClient()
+        for patcher in (
+            patch("ani2openlist.utils.retry.sleep"),
+            patch("ani2openlist.utils.retry.async_sleep", new=AsyncMock()),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    async def asyncTearDown(self):
+        self.client.close_sync_client()
+        await self.client.close_async_client()
+
+    def assert_timeout_context(self, error, expected_type):
+        self.assertIsInstance(error, expected_type)
+        self.assertIsInstance(error.__cause__, expected_type)
+        message = str(error)
+        self.assertIn(expected_type.__name__, message)
+        self.assertIn("GET https://example.invalid/ani-download.xml", message)
+        self.assertIn("超时设置：30 秒", message)
+        self.assertNotIn("private-token", message)
+        self.assertNotIn("user:private-password", message)
+        self.assertEqual(
+            error.request.url,
+            "https://example.invalid/ani-download.xml",
+        )
+
+    async def test_async_empty_timeout_keeps_type_and_safe_context(self):
+        for exception_type in (
+            httpx.ConnectTimeout,
+            httpx.ReadTimeout,
+            httpx.WriteTimeout,
+            httpx.PoolTimeout,
+        ):
+            with self.subTest(exception_type=exception_type):
+                with patch.object(
+                    httpx.AsyncClient,
+                    "request",
+                    new=AsyncMock(side_effect=exception_type("")),
+                ):
+                    with self.assertRaises(exception_type) as caught:
+                        await self.client.get(
+                            "https://user:private-password@example.invalid/ani-download.xml"
+                            "?private-token=secret"
+                        )
+                self.assert_timeout_context(caught.exception, exception_type)
+
+    def test_sync_empty_timeout_keeps_type_and_safe_context(self):
+        with patch.object(httpx.Client, "request", side_effect=httpx.ReadTimeout("")):
+            with self.assertRaises(httpx.ReadTimeout) as caught:
+                self.client.get(
+                    "https://user:private-password@example.invalid/ani-download.xml"
+                    "?private-token=secret",
+                    sync=True,
+                )
+        self.assert_timeout_context(caught.exception, httpx.ReadTimeout)
+
+    async def test_existing_request_object_is_preserved(self):
+        request = httpx.Request(
+            "GET", "https://example.invalid/feed?private-token=secret"
+        )
+        with patch.object(
+            httpx.AsyncClient,
+            "request",
+            new=AsyncMock(side_effect=httpx.ReadTimeout("", request=request)),
+        ):
+            with self.assertRaises(httpx.ReadTimeout) as caught:
+                await self.client.get("https://example.invalid/feed?private-token=secret")
+        self.assertIs(caught.exception.request, request)
+        self.assertNotIn("private-token", str(caught.exception))
+
+    async def test_default_custom_and_per_request_timeout(self):
+        response = httpx.Response(200, request=httpx.Request("GET", "https://example.com"))
+        default_client = HTTPClient()
+        self.addAsyncCleanup(default_client.close_async_client)
+        self.addCleanup(default_client.close_sync_client)
+        self.assertEqual(default_client.timeout, 30.0)
+        with patch.object(httpx.AsyncClient, "request", new=AsyncMock(return_value=response)):
+            await default_client.get("https://example.com")
+            self.assertNotIn("timeout", httpx.AsyncClient.request.await_args.kwargs)
+
+            await self.client.get("https://example.com", timeout=0.5)
+            self.assertEqual(httpx.AsyncClient.request.await_args.kwargs["timeout"], 0.5)
+
+    def test_timeout_validation(self):
+        for value in (True, False, 0, -1, float("inf"), float("nan"), "30", None):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                HTTPClient(value)
+
+    async def test_retry_logs_attempt_numbers_and_preserves_backoff(self):
+        sleeps = []
+
+        async def capture_sleep(delay):
+            sleeps.append(delay)
+
+        with (
+            patch("ani2openlist.utils.retry.async_sleep", new=capture_sleep),
+            patch.object(
+                httpx.AsyncClient,
+                "request",
+                new=AsyncMock(side_effect=httpx.ReadTimeout("")),
+            ),
+            self.assertLogs("ani2openlist", level="WARNING") as logs,
+        ):
+            with self.assertRaises(httpx.ReadTimeout):
+                await self.client.get("https://example.invalid")
+        self.assertEqual(sleeps, [2, 4])
+        self.assertIn("第 1/3 次请求失败", logs.output[0])
+        self.assertIn("第 2/3 次请求失败", logs.output[1])
+        self.assertIn("第 3/3 次请求失败", logs.output[-1])
+
+
 if __name__ == "__main__":
     unittest.main()
