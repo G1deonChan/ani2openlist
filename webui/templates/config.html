@@ -42,6 +42,11 @@
             <input type="text" id="openlist_target_dir" name="openlist_target_dir" 
                    placeholder="/Anime" required>
         </div>
+        <div class="form-group">
+            <label for="openlist_update_timeout">存储写回等待时间（秒）</label>
+            <input type="number" id="openlist_update_timeout" min="0" step="any" value="120" required>
+            <small>Openlist 保存配置并重载驱动可能较慢；写回超时后会核对保存结果，不自动重复提交。</small>
+        </div>
     </div>
     
     <div class="card">
@@ -206,6 +211,7 @@ async function loadConfig() {
         }
         
         document.getElementById('http_timeout').value = config.http?.timeout ?? 30;
+        document.getElementById('openlist_update_timeout').value = config.openlist?.update_timeout ?? 120;
 
         // 填充日志配置
         if (config.logging) {
@@ -227,6 +233,11 @@ document.getElementById('config-form').addEventListener('submit', async function
         return;
     }
     const httpTimeout = Number(document.getElementById('http_timeout').value);
+    const updateTimeout = Number(document.getElementById('openlist_update_timeout').value);
+    if (!Number.isFinite(updateTimeout) || updateTimeout <= 0) {
+        showAlert('存储写回等待时间必须是大于 0 的有限秒数', 'error');
+        return;
+    }
     if (!Number.isFinite(httpTimeout) || httpTimeout <= 0) {
         showAlert('HTTP 请求超时必须是大于 0 的有限秒数', 'error');
         return;
@@ -239,7 +250,8 @@ document.getElementById('config-form').addEventListener('submit', async function
             username: document.getElementById('openlist_username').value,
             password: document.getElementById('openlist_password').value,
             token: document.getElementById('openlist_token').value,
-            target_dir: document.getElementById('openlist_target_dir').value
+            target_dir: document.getElementById('openlist_target_dir').value,
+            update_timeout: updateTimeout
         },
         ani: {
             rss_update: document.getElementById('ani_rss_update').checked,

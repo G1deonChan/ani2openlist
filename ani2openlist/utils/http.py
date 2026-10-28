@@ -21,13 +21,16 @@ from ani2openlist.utils.retry import Retry
 DEFAULT_TIMEOUT = 30.0
 
 
-def validate_timeout(value: Any) -> float:
+def validate_timeout(value: Any, name: str = "http.timeout") -> float:
     """Return a finite, positive timeout in seconds."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError("http.timeout 必须是大于 0 的有限秒数")
-    timeout = float(value)
+        raise ValueError(f"{name} 必须是大于 0 的有限秒数")
+    try:
+        timeout = float(value)
+    except OverflowError:
+        raise ValueError(f"{name} 必须是大于 0 的有限秒数") from None
     if not math.isfinite(timeout) or timeout <= 0:
-        raise ValueError("http.timeout 必须是大于 0 的有限秒数")
+        raise ValueError(f"{name} 必须是大于 0 的有限秒数")
     return timeout
 
 
@@ -48,13 +51,15 @@ def _safe_request_url(url: str) -> str:
 def _timeout_description(timeout: Any) -> str:
     if isinstance(timeout, Timeout):
         values = timeout.as_dict()
-        return ", ".join(f"{name}={value:g} 秒" for name, value in values.items())
+        return ", ".join(f"{name}={_timeout_description(value)}" for name, value in values.items())
     if timeout is None:
         return "未设置时限"
     return f"{timeout:g} 秒"
 
 
-def _timeout_error(error: TimeoutException, method: str, url: str, timeout: Any) -> TimeoutException:
+def _timeout_error(
+    error: TimeoutException, method: str, url: str, timeout: Any
+) -> TimeoutException:
     message = (
         f"HTTP 请求超时：{type(error).__name__}，{method.upper()} "
         f"{_safe_request_url(url)}，超时设置：{_timeout_description(timeout)}"
@@ -73,7 +78,7 @@ class HTTPClient:
 
     # 默认请求头
     HEADERS: dict[str, str] = {
-        "User-Agent": "Ani2Openlist/1.2.0",
+        "User-Agent": "Ani2Openlist/1.2.1",
         "Accept": "application/json",
     }
 
@@ -119,11 +124,13 @@ class HTTPClient:
 
         重试耗尽后会抛出异常，不会返回 None
         """
+        return self._sync_request_once(method, url, **kwargs)
+
+    def _sync_request_once(self, method: str, url: str, **kwargs) -> Response:
+        kwargs.setdefault("timeout", self.timeout)
         try:
             return self.__sync_client.request(method, url, **kwargs)
         except TimeoutException as e:
-            self.close_sync_client()
-            self.__new_sync_client()
             raise _timeout_error(e, method, url, kwargs.get("timeout", self.timeout)) from e
 
     @Retry.async_retry(TransportError, tries=3, delay=1, backoff=2)
@@ -133,11 +140,13 @@ class HTTPClient:
 
         重试耗尽后会抛出异常，不会返回 None
         """
+        return await self._async_request_once(method, url, **kwargs)
+
+    async def _async_request_once(self, method: str, url: str, **kwargs) -> Response:
+        kwargs.setdefault("timeout", self.timeout)
         try:
             return await self.__async_client.request(method, url, **kwargs)
         except TimeoutException as e:
-            await self.close_async_client()
-            self.__new_async_client()
             raise _timeout_error(e, method, url, kwargs.get("timeout", self.timeout)) from e
 
     @overload
@@ -156,6 +165,7 @@ class HTTPClient:
         url: str,
         *,
         sync: Literal[True, False] = False,
+        retry: bool = True,
         **kwargs,
     ) -> Response | Coroutine[Any, Any, Response]:
         """
@@ -164,15 +174,17 @@ class HTTPClient:
         :param method: HTTP 方法，如 get, post, put 等
         :param url: 请求的 URL
         :param sync: 是否使用同步请求方式，默认为 False
+        :param retry: 是否自动重试传输错误；状态变更请求可关闭重试
         :param kwargs: 其他请求参数，如 headers, cookies 等
         :return: HTTP 响应对象
         """
         headers = kwargs.get("headers", self.HEADERS)
         kwargs["headers"] = headers
         if sync:
-            return self._sync_request(method, url, **kwargs)
+            send = self._sync_request if retry else self._sync_request_once
         else:
-            return self._async_request(method, url, **kwargs)
+            send = self._async_request if retry else self._async_request_once
+        return send(method, url, **kwargs)
 
     @overload
     def get(self, url: str, *, sync: Literal[True], **kwargs) -> Response: ...
@@ -284,7 +296,8 @@ class RequestUtils:
         """
         发起 HTTP 请求
         """
-        client = cls.get_client(url, timeout=kwargs.get("timeout"))
+        # Per-request overrides must not become defaults for other requests.
+        client = cls.get_client(url)
         return client.request(method, url, sync=sync, **kwargs)
 
     @overload

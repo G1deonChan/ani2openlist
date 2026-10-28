@@ -29,7 +29,7 @@ class TestTimeoutIntegration(unittest.TestCase):
         config = Config({"ani": {"rss_domain": "rss.example"}, "http": {"timeout": 45}})
         ani = Ani2Openlist(config=config)
         client.assert_called_once_with(
-            "http://localhost:5244", "", "", "", http_timeout=45.0
+            "http://localhost:5244", "", "", "", http_timeout=45.0, storage_update_timeout=120.0
         )
         response = httpx.Response(200, text="<rss></rss>")
         with patch(
@@ -91,7 +91,7 @@ class TestTimeoutIntegration(unittest.TestCase):
     @patch("ani2openlist.ani2openlist.OpenlistClient")
     def test_rss_failure_does_not_update_storage(self, client):
         ani = Ani2Openlist(config=Config({"http": {"timeout": 1}}))
-        storage = MagicMock()
+        storage = MagicMock(driver="UrlTree")
         storage.addition2dict = {"url_structure": ""}
         ani.client.get_storage_by_mount_path = AsyncMock(return_value=storage)
         ani.client.async_api_admin_storage_update = AsyncMock()

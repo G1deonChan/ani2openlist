@@ -1,14 +1,21 @@
 from asyncio import sleep
 from typing import Callable, AsyncGenerator
 from time import time
+from json import loads
 
-from httpx import Response
+from httpx import Response, Timeout, TransportError
 
 from ani2openlist.core.logger import logger
 from ani2openlist.utils.http import DEFAULT_TIMEOUT, RequestUtils, validate_timeout
 from ani2openlist.utils.multiton import Multiton
 from ani2openlist.openlist.path import OpenlistPath
 from ani2openlist.openlist.storage import OpenlistStorage
+
+DEFAULT_STORAGE_UPDATE_TIMEOUT = 120.0
+
+
+class StorageUpdateUnconfirmedError(RuntimeError):
+    """A write may have committed even though driver initialization was not confirmed."""
 
 
 class OpenlistClient(metaclass=Multiton):
@@ -23,6 +30,7 @@ class OpenlistClient(metaclass=Multiton):
         password: str = "",
         token: str = "",
         http_timeout: float = DEFAULT_TIMEOUT,
+        storage_update_timeout: float = DEFAULT_STORAGE_UPDATE_TIMEOUT,
     ) -> None:
         """
         OpenlistClient 类初始化
@@ -31,9 +39,13 @@ class OpenlistClient(metaclass=Multiton):
         :param username: Openlist 用户名
         :param password: Openlist 密码
         :param token: Openlist 永久令牌
+        :param storage_update_timeout: 存储写回的响应等待时间（秒）
         """
 
         self.__http_timeout = validate_timeout(http_timeout)
+        self.__storage_update_timeout = validate_timeout(
+            storage_update_timeout, "openlist.update_timeout"
+        )
         if (username == "" or password == "") and token == "":
             raise ValueError("用户名及密码为空或令牌 Token 为空")
 
@@ -319,8 +331,38 @@ class OpenlistClient(metaclass=Multiton):
         if result["code"] != 200:
             raise RuntimeError(f"创建存储失败，详细信息：{result['message']}")
 
+        storage.id = (result.get("data") or {}).get("id", 0)
         logger.debug("创建存储成功")
         return
+
+    async def _reconcile_storage_update(self, payload: dict, reason: str) -> None:
+        # GET reads persisted configuration. It cannot prove the new driver is ready:
+        # Openlist saves the row BEFORE running driver initialization.
+        saved = False
+        try:
+            response = await self.__get(
+                self.url + "/api/admin/storage/get", params={"id": payload["id"]},
+                retry=False,
+            )
+            result = response.json() if response.status_code == 200 else {}
+            actual = result.get("data") if result.get("code") == 200 else None
+            if isinstance(actual, dict):
+                saved = all(
+                    loads(actual.get(key, "null")) == loads(value)
+                    if key == "addition" else actual.get(key) == value
+                    for key, value in payload.items() if key not in ("status", "modified")
+                )
+        except (TransportError, ValueError, TypeError, AttributeError):
+            logger.warning("存储写回结果查询失败，未自动重发更新请求")
+        detail = (
+            "已核对配置保存成功，但驱动重载结果尚未确认"
+            if saved else "无法确认目标配置已保存"
+        )
+        raise StorageUpdateUnconfirmedError(
+            f"存储写回响应未确认（ID={payload['id']}，{reason}）：{detail}；未自动重发。"
+            "请检查 Openlist 日志、UrlTree 的 head_size 设置及反向代理超时；"
+            "可通过 openlist.update_timeout 调整写回等待时间。"
+        )
 
     async def async_api_admin_storage_update(self, storage: OpenlistStorage) -> None:
         """
@@ -329,6 +371,8 @@ class OpenlistClient(metaclass=Multiton):
         :param storage: OpenlistStorage 对象
         """
 
+        if storage.id <= 0:
+            raise ValueError("存储写回需要有效的存储 ID")
         json = {
             "id": storage.id,
             "mount_path": storage.mount_path,
@@ -352,7 +396,29 @@ class OpenlistClient(metaclass=Multiton):
         if storage.modified:
             json["modified"] = storage.modified
 
-        resp = await self.__post(self.url + "/api/admin/storage/update", json=json)
+        timeout = Timeout(self.__http_timeout, read=self.__storage_update_timeout)
+        logger.info(
+            "开始写回存储 ID=%s，响应等待上限=%g 秒（不自动重发）",
+            storage.id, self.__storage_update_timeout,
+        )
+        started = time()
+        try:
+            resp = await self.__post(
+                self.url + "/api/admin/storage/update", json=json,
+                timeout=timeout, retry=False,
+            )
+        except TransportError as error:
+            elapsed = time() - started
+            try:
+                await self._reconcile_storage_update(
+                    json, f"{type(error).__name__}，等待 {elapsed:.1f} 秒"
+                )
+            except StorageUpdateUnconfirmedError as unconfirmed:
+                raise unconfirmed from error
+        if resp.status_code in (408, 502, 503, 504, 524):
+            await self._reconcile_storage_update(
+                json, f"HTTP {resp.status_code}，等待 {time() - started:.1f} 秒"
+            )
         if resp.status_code != 200:
             raise RuntimeError(f"更新存储请求发送失败，状态码：{resp.status_code}")
 
@@ -362,7 +428,8 @@ class OpenlistClient(metaclass=Multiton):
             raise RuntimeError(f"更新存储器失败，详细信息：{result['message']}")
 
         logger.debug(
-            f"更新存储器成功，存储器ID：{storage.id}，挂载路径：{storage.mount_path}"
+            f"更新存储器成功，存储器ID：{storage.id}，挂载路径：{storage.mount_path}，"
+            f"耗时：{time() - started:.1f} 秒"
         )
         return
 
@@ -422,6 +489,8 @@ class OpenlistClient(metaclass=Multiton):
             kwargs["mount_path"] = mount_path
             storage = OpenlistStorage(**kwargs)
             await self.async_api_admin_storage_create(storage)
+            if storage.id <= 0:
+                return await self.get_storage_by_mount_path(mount_path, create=False)
             return storage
 
         return None

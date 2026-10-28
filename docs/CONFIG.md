@@ -27,6 +27,7 @@ openlist:
   username: "admin"
   password: "your_password"
   target_dir: "/Anime"
+  update_timeout: 120
 
 # ANI Open 配置
 ani:
@@ -54,6 +55,7 @@ logging:
 | password | string | * | 密码（与 token 二选一） | - |
 | token | string | * | Token 认证（优先级高于用户名密码） | - |
 | target_dir | string | 是 | 挂载目录 | /Anime |
+| update_timeout | number | 否 | 存储写回响应等待时间（秒），必须为有限正数 | 120 |
 
 \* 注：`username+password` 或 `token` 必须提供其中一种认证方式
 
@@ -74,10 +76,20 @@ logging:
 |--------|------|------|------|--------|
 | timeout | number | 否 | 普通同步、异步请求超时（秒），必须为有限正数 | 30 |
 
-该设置用于 Openlist、RSS 和直连目录请求。单次请求的 `timeout` 参数优先；
+该设置用于 Openlist、RSS 和直连目录请求。存储写回的读取超时由
+`openlist.update_timeout` 单独控制，连接和发送超时仍使用 `http.timeout`。
+单次请求的 `timeout` 参数优先；
 FlareSolverr 使用 `ani.flaresolverr_timeout`（毫秒），不受此设置影响。
-超时请求最多尝试三次，间隔为 2 秒和 4 秒。失败日志会记录请求方法、
+普通请求最多尝试三次，间隔为 2 秒和 4 秒。失败日志会记录请求方法、
 域名和路径、异常类型及有效超时，不记录查询参数或认证信息。
+
+存储写回只发送一次，避免超时后重复触发驱动初始化。传输错误或网关超时后，
+程序按存储 ID 读取配置并核对本次提交的内容；即使内容一致，也会提示
+“配置已保存，但驱动重载结果尚未确认”，不会把数据库保存当成挂载成功。
+地址树内容无变化时跳过写回。若仍然超时，请检查 Openlist 日志和反向代理时限；
+`head_size` 开启时，UrlTree 重建会为缺少大小的条目请求源站；该选项关闭时，
+应结合 OpenList 日志确认保存、驱动重建、数据库锁、反向代理时限和服务资源。
+程序不会擅自修改 `head_size` 或其他存储选项。
 
 ### 日志配置 (logging)
 

@@ -1,5 +1,6 @@
 from typing import Final
 from datetime import datetime
+from copy import deepcopy
 from urllib.parse import urlsplit, urlunsplit
 
 from feedparser import parse  # type:ignore
@@ -10,7 +11,7 @@ from ani2openlist.utils.http import DEFAULT_TIMEOUT, RequestUtils, validate_time
 from ani2openlist.utils.flaresolverr import FlareSolverrDirectory
 from ani2openlist.utils.url import URLUtils
 from ani2openlist.utils.openlist import OpenlistUtils
-from ani2openlist.openlist.client import OpenlistClient
+from ani2openlist.openlist.client import DEFAULT_STORAGE_UPDATE_TIMEOUT, OpenlistClient
 
 VIDEO_MINETYPE: Final = frozenset(("video/mp4", "video/x-matroska"))
 SUBTITLE_MINETYPE: Final = frozenset(("application/octet-stream",))
@@ -43,6 +44,7 @@ class Ani2Openlist:
         flaresolverr_timeout: int = 60000,
         resource_domain: str = "",
         http_timeout: float = DEFAULT_TIMEOUT,
+        storage_update_timeout: float = DEFAULT_STORAGE_UPDATE_TIMEOUT,
         **_,
     ) -> None:
         """
@@ -64,6 +66,7 @@ class Ani2Openlist:
         :param flaresolverr_timeout: 浏览器请求超时，单位毫秒
         :param resource_domain: 手动扫描生成链接时使用的资源域名（不含协议）
         :param http_timeout: 普通 HTTP 请求超时，单位秒，默认为 30
+        :param storage_update_timeout: 存储写回响应超时，单位秒，默认为 120
         """
 
         # 如果提供了配置对象，优先使用配置文件中的值
@@ -87,10 +90,19 @@ class Ani2Openlist:
                 raise ValueError("http 必须是配置对象")
             if "timeout" in http_config:
                 http_timeout = http_config["timeout"]
+            openlist_config = config.get_all().get("openlist", {})
+            if not isinstance(openlist_config, dict):
+                raise ValueError("openlist 必须是配置对象")
+            if "update_timeout" in openlist_config:
+                storage_update_timeout = openlist_config["update_timeout"]
 
         self.__http_timeout = validate_timeout(http_timeout)
+        storage_update_timeout = validate_timeout(
+            storage_update_timeout, "openlist.update_timeout"
+        )
         self.client = OpenlistClient(
-            url, username, password, token, http_timeout=self.__http_timeout
+            url, username, password, token, http_timeout=self.__http_timeout,
+            storage_update_timeout=storage_update_timeout,
         )
         self.__target_dir = "/" + target_dir.strip("/")
 
@@ -137,11 +149,18 @@ class Ani2Openlist:
         if storage is None:
             logger.error(f"未找到挂载路径：{self.__target_dir}，并且无法创建")
             return
+        if storage.driver != "UrlTree":
+            raise ValueError("目标存储不是 UrlTree，已停止更新")
 
         addition_dict = storage.addition2dict
         url_dict = OpenlistUtils.structure2dict(addition_dict.get("url_structure", ""))
+        original = deepcopy(url_dict)
 
         await self.__update_url_dicts(url_dict)
+
+        if url_dict == original:
+            logger.info("地址树无变化，跳过存储写回")
+            return
 
         addition_dict["url_structure"] = OpenlistUtils.dict2structure(url_dict)
         storage.set_addition_by_dict(addition_dict)

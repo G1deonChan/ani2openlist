@@ -229,7 +229,7 @@ class TestHTTPTimeout(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(default_client.timeout, 30.0)
         with patch.object(httpx.AsyncClient, "request", new=AsyncMock(return_value=response)):
             await default_client.get("https://example.com")
-            self.assertNotIn("timeout", httpx.AsyncClient.request.await_args.kwargs)
+            self.assertEqual(httpx.AsyncClient.request.await_args.kwargs["timeout"], 30.0)
 
             await self.client.get("https://example.com", timeout=0.5)
             self.assertEqual(httpx.AsyncClient.request.await_args.kwargs["timeout"], 0.5)

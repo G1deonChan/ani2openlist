@@ -20,6 +20,7 @@ from ani2openlist import Ani2Openlist, load_config, Config
 from ani2openlist.core.logger import logger
 from ani2openlist.utils.http import DEFAULT_TIMEOUT, RequestUtils, validate_timeout
 from ani2openlist.utils.multiton import Multiton
+from ani2openlist.openlist.client import DEFAULT_STORAGE_UPDATE_TIMEOUT
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ani2openlist-secret-key-change-in-production'
@@ -288,6 +289,18 @@ def save_config():
         # 验证必需字段
         if 'openlist' not in config_data:
             return jsonify({'error': '缺少 openlist 配置'}), 400
+        openlist_config = config_data['openlist']
+        if not isinstance(openlist_config, dict):
+            return jsonify({'error': 'openlist 必须是配置对象'}), 400
+        try:
+            update_timeout = validate_timeout(
+                openlist_config.get('update_timeout', DEFAULT_STORAGE_UPDATE_TIMEOUT),
+                'openlist.update_timeout',
+            )
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        if 'update_timeout' in openlist_config:
+            openlist_config['update_timeout'] = update_timeout
 
         http_config = config_data.get('http', {})
         if not isinstance(http_config, dict):
