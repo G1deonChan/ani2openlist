@@ -241,4 +241,6 @@ class TestSyncAndConfiguration(unittest.IsolatedAsyncioTestCase):
         html = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="openlist_update_timeout"', html)
-        self.assertIn("update_timeout: updateTimeout", html)
+        self.assertIn("js/config.js", html)
+        script = app.test_client().get("/static/js/config.js")
+        self.assertEqual(script.status_code, 200)

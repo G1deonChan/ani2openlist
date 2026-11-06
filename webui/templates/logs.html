@@ -1,139 +1,46 @@
 {% extends "base.html" %}
+{% block title %}运行日志 - Ani2Openlist{% endblock %}
 
-{% block title %}日志 - Ani2Openlist{% endblock %}
-
-{% block content %}
-<h2>运行日志</h2>
-
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-    <div>
-        <button class="btn btn-secondary" onclick="refreshLogs()">🔄 刷新</button>
-        <button class="btn btn-danger" onclick="clearLogs()">🗑️ 清空日志</button>
-    </div>
-    <div>
-        <label>
-            <input type="checkbox" id="auto-refresh" checked>
-            自动刷新（每 5 秒）
-        </label>
-    </div>
+{% block content %}<div class="page-heading">
+<div>
+<p class="eyebrow">ACTIVITY</p>
+<h1>运行日志</h1>
+<p class="subtitle">查看同步过程，快速定位运行问题。</p>
 </div>
-
-<div class="card">
-    <div id="logs-container">
-        <div class="loading">加载中...</div>
-    </div>
+<div class="actions">
+<button class="btn" onclick="refreshLogs()">{{ icon('refresh') }}刷新</button>
+<button id="clear-btn" class="btn btn-danger" onclick="clearLogs()">{{ icon('trash') }}清空日志</button>
 </div>
-{% endblock %}
+</div>
+<div id="alert-container" aria-live="polite">
+</div>
+<section class="card">
+<div class="log-toolbar">
+<div class="search-field">
+<label for="log-search">搜索消息</label>
+<input type="search" id="log-search" placeholder="输入关键词…">
+</div>
+<div>
+<label for="log-level">日志级别</label>
+<select id="log-level">
+<option value="all">全部级别</option>
+<option value="success">成功</option>
+<option value="info">信息</option>
+<option value="warning">警告</option>
+<option value="error">错误</option>
+</select>
+</div>
+<label class="check-label">
+<input type="checkbox" id="auto-refresh" checked>自动刷新 · 5 秒</label>
+</div>
+<div class="section-heading log-meta">
+<p id="log-count" class="muted">仅显示服务端最近 100 条记录</p>
+<p id="refresh-state" class="refresh-state" role="status">正在获取日志…</p>
+</div>
+<div id="logs-container" class="log-list">
+<p class="empty">正在加载日志…</p>
+</div>
+</section>{% endblock %}
 
-{% block scripts %}
-<script>
-let refreshInterval;
-
-async function refreshLogs() {
-    try {
-        const response = await axios.get('/api/logs');
-        const logs = response.data.logs;
-        
-        const container = document.getElementById('logs-container');
-        
-        if (!logs || logs.length === 0) {
-            container.innerHTML = '<p style="color: #718096; text-align: center; padding: 40px;">暂无日志</p>';
-            return;
-        }
-        
-        let html = '<table style="font-size: 13px;"><tr><th style="width: 180px;">时间</th><th style="width: 80px;">级别</th><th>消息</th></tr>';
-        
-        logs.forEach(log => {
-            let levelColor = '#718096';
-            let levelBg = '#f7fafc';
-            
-            if (log.level === 'success') {
-                levelColor = '#38a169';
-                levelBg = '#c6f6d5';
-            } else if (log.level === 'error') {
-                levelColor = '#e53e3e';
-                levelBg = '#fed7d7';
-            } else if (log.level === 'warning') {
-                levelColor = '#dd6b20';
-                levelBg = '#feebc8';
-            } else if (log.level === 'info') {
-                levelColor = '#3182ce';
-                levelBg = '#bee3f8';
-            }
-            
-            html += `
-                <tr style="border-left: 3px solid ${levelColor};">
-                    <td style="font-family: monospace; font-size: 11px; color: #4a5568;">${log.time}</td>
-                    <td>
-                        <span style="
-                            display: inline-block;
-                            padding: 2px 8px;
-                            border-radius: 3px;
-                            font-size: 11px;
-                            font-weight: 600;
-                            background: ${levelBg};
-                            color: ${levelColor};
-                        ">${log.level.toUpperCase()}</span>
-                    </td>
-                    <td style="color: #2d3748;">${log.message}</td>
-                </tr>
-            `;
-        });
-        
-        html += '</table>';
-        container.innerHTML = html;
-    } catch (error) {
-        console.error('获取日志失败:', error);
-    }
-}
-
-async function clearLogs() {
-    if (confirm('确定要清空所有日志吗？')) {
-        try {
-            await axios.post('/api/logs/clear');
-            refreshLogs();
-        } catch (error) {
-            alert('清空日志失败');
-        }
-    }
-}
-
-function startAutoRefresh() {
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
-    }
-    
-    refreshInterval = setInterval(() => {
-        if (document.getElementById('auto-refresh').checked) {
-            refreshLogs();
-        }
-    }, 5000);
-}
-
-function stopAutoRefresh() {
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
-        refreshInterval = null;
-    }
-}
-
-document.getElementById('auto-refresh').addEventListener('change', function() {
-    if (this.checked) {
-        startAutoRefresh();
-    } else {
-        stopAutoRefresh();
-    }
-});
-
-// 页面加载时刷新日志
-document.addEventListener('DOMContentLoaded', () => {
-    refreshLogs();
-    startAutoRefresh();
-});
-
-// 页面卸载时停止刷新
-window.addEventListener('beforeunload', () => {
-    stopAutoRefresh();
-});
-</script>
-{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/logs.js') }}">
+</script>{% endblock %}

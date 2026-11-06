@@ -1,74 +1,90 @@
 {% extends "base.html" %}
 
+
 {% block title %}配置 - Ani2Openlist{% endblock %}
 
-{% block content %}
-<h2>配置管理</h2>
 
-<div id="alert-container"></div>
+
+{% block content %}
+<div class="page-heading">
+<div>
+<p class="eyebrow">CONFIGURATION</p>
+<h1>配置管理</h1>
+<p class="subtitle">连接你的 OpenList，选择适合自己的同步方式。</p>
+</div>
+</div>
+<nav class="section-nav" aria-label="配置分组">
+<a href="#connection">OpenList 连接</a>
+<a href="#sync">同步方式</a>
+<a href="#network">网络与高级选项</a>
+<a href="#logging">日志设置</a>
+</nav>
+
+<div id="alert-container" aria-live="polite">
+</div>
 
 <form id="config-form">
-    <div class="card">
-        <h3>Openlist 服务器配置</h3>
-        
+    <section class="card form-section" id="connection">
+        <h2>OpenList 连接</h2>
+
         <div class="form-group">
             <label for="openlist_url">服务器地址 *</label>
-            <input type="text" id="openlist_url" name="openlist_url" 
+            <input type="text" id="openlist_url" name="openlist_url"
                    placeholder="http://localhost:5244" required>
         </div>
-        
+
         <div class="form-group">
             <label for="openlist_username">用户名</label>
-            <input type="text" id="openlist_username" name="openlist_username" 
+            <input type="text" id="openlist_username" name="openlist_username"
                    placeholder="admin">
-            <small style="color: #718096;">与 Token 二选一</small>
+            <small>与 Token 二选一</small>
         </div>
-        
+
         <div class="form-group">
             <label for="openlist_password">密码</label>
-            <input type="password" id="openlist_password" name="openlist_password" 
+            <input type="password" id="openlist_password" name="openlist_password"
                    placeholder="密码">
-            <small style="color: #718096;">与 Token 二选一</small>
+            <small>与 Token 二选一</small>
         </div>
-        
+
         <div class="form-group">
             <label for="openlist_token">Token（优先使用）</label>
-            <input type="text" id="openlist_token" name="openlist_token" 
+            <input type="password" id="openlist_token" name="openlist_token"
                    placeholder="openlist-xxxxxxxxxxxx">
         </div>
-        
+
         <div class="form-group">
             <label for="openlist_target_dir">目标目录 *</label>
-            <input type="text" id="openlist_target_dir" name="openlist_target_dir" 
-                   placeholder="/Anime" required>
+            <input type="text" id="openlist_target_dir" name="openlist_target_dir"
+                   placeholder="/Anime" value="/Anime" required>
         </div>
         <div class="form-group">
             <label for="openlist_update_timeout">存储写回等待时间（秒）</label>
             <input type="number" id="openlist_update_timeout" min="0" step="any" value="120" required>
             <small>Openlist 保存配置并重载驱动可能较慢；写回超时后会核对保存结果，不自动重复提交。</small>
         </div>
-    </div>
-    
-    <div class="card">
-        <h3>ANI Open 配置</h3>
-        
+    </section>
+
+    <section class="card form-section" id="sync">
+        <h2>同步方式</h2>
+
         <div class="form-group">
             <label for="ani_rss_update">
                 <input type="checkbox" id="ani_rss_update" name="ani_rss_update" checked>
                 使用 RSS 追更模式
             </label>
-            <small style="color: #718096; display: block; margin-top: 5px;">
+            <small>
                 启用后自动获取最新番剧，禁用后可手动指定年份/季度或关键字
             </small>
         </div>
-        
+
         <div id="manual-config" style="display: none;">
             <div class="form-group">
                 <label for="ani_year">年份</label>
-                <input type="number" id="ani_year" name="ani_year" 
+                <input type="number" id="ani_year" name="ani_year"
                        placeholder="2024">
             </div>
-            
+
             <div class="form-group">
                 <label for="ani_month">季度月份</label>
                 <select id="ani_month" name="ani_month">
@@ -79,27 +95,31 @@
                     <option value="10">10月（秋季）</option>
                 </select>
             </div>
-            
+
             <div class="form-group">
                 <label for="ani_key_word">自定义关键字</label>
-                <input type="text" id="ani_key_word" name="ani_key_word" 
+                <input type="text" id="ani_key_word" name="ani_key_word"
                        placeholder="搜索关键字">
-                <small style="color: #718096;">如果指定关键字，年份和季度将被忽略</small>
+                <small>如果指定关键字，年份和季度将被忽略</small>
             </div>
         </div>
-        
+
+    </section>
+
+    <section class="card form-section" id="network">
+        <h2>网络与高级选项</h2>
         <div class="form-group">
             <label for="ani_src_domain">源域名</label>
-            <input type="text" id="ani_src_domain" name="ani_src_domain" 
+            <input type="text" id="ani_src_domain" name="ani_src_domain"
                    placeholder="aniopen.an-i.workers.dev">
-            <small style="color: #718096;">可自定义反代域名</small>
+            <small>可自定义反代域名</small>
         </div>
-        
+
         <div class="form-group">
             <label for="ani_rss_domain">RSS 域名</label>
-            <input type="text" id="ani_rss_domain" name="ani_rss_domain" 
+            <input type="text" id="ani_rss_domain" name="ani_rss_domain"
                    placeholder="api.ani.rip">
-            <small style="color: #718096;">可自定义反代域名</small>
+            <small>可自定义反代域名</small>
         </div>
         <div class="form-group">
             <label for="ani_flaresolverr_url">FlareSolverr 地址（可选）</label>
@@ -115,20 +135,16 @@
             <input type="text" id="ani_resource_domain" placeholder="resources.ani.rip">
             <small>用于手动扫描生成的播放/下载链接；留空沿用源域名。</small>
         </div>
-    </div>
-    
-    <div class="card">
-        <h3>HTTP 请求配置</h3>
         <div class="form-group">
             <label for="http_timeout">HTTP 请求超时（秒）</label>
             <input type="number" id="http_timeout" min="0.001" step="any" value="30" required>
             <small>适用于 Openlist、RSS 和直连目录请求；单次请求专用超时优先。</small>
         </div>
-    </div>
+    </section>
 
-    <div class="card">
-        <h3>日志配置</h3>
-        
+    <section class="card form-section" id="logging">
+        <h2>日志设置</h2>
+
         <div class="form-group">
             <label for="logging_level">日志级别</label>
             <select id="logging_level" name="logging_level">
@@ -138,158 +154,25 @@
                 <option value="ERROR">ERROR（错误）</option>
             </select>
         </div>
-        
+
         <div class="form-group">
             <label for="logging_format">日志格式</label>
-            <input type="text" id="logging_format" name="logging_format" 
+            <input type="text" id="logging_format" name="logging_format"
                    value="%(asctime)s - %(name)s - %(levelname)s - %(message)s">
         </div>
-    </div>
-    
-    <div style="display: flex; gap: 10px;">
-        <button type="submit" class="btn btn-primary">💾 保存配置</button>
-        <button type="button" class="btn btn-secondary" onclick="loadConfig()">🔄 重新加载</button>
-        <a href="{{ url_for('index') }}" class="btn btn-secondary">❌ 取消</a>
+    </section>
+
+    <div class="save-bar actions">
+        <button type="submit" class="btn btn-primary">{{ icon('settings') }}保存配置</button>
+        <button type="button" class="btn btn-secondary" onclick="loadConfig(true)">{{ icon('refresh') }}重新加载</button>
+        <span id="form-state" class="muted" role="status">正在加载配置…</span>
     </div>
 </form>
 {% endblock %}
 
+
+
 {% block scripts %}
-<script>
-function showAlert(message, type = 'info') {
-    const alertHtml = `
-        <div class="alert alert-${type}">
-            ${message}
-        </div>
-    `;
-    document.getElementById('alert-container').innerHTML = alertHtml;
-    window.scrollTo(0, 0);
-    setTimeout(() => {
-        document.getElementById('alert-container').innerHTML = '';
-    }, 5000);
-}
-
-// RSS 模式切换
-document.getElementById('ani_rss_update').addEventListener('change', function() {
-    const manualConfig = document.getElementById('manual-config');
-    manualConfig.style.display = this.checked ? 'none' : 'block';
-});
-
-async function loadConfig() {
-    try {
-        const response = await axios.get('/api/config');
-        const config = response.data;
-        
-        if (config.error) {
-            showAlert('配置文件不存在或格式错误', 'error');
-            return;
-        }
-        
-        // 填充 Openlist 配置
-        if (config.openlist) {
-            document.getElementById('openlist_url').value = config.openlist.url || '';
-            document.getElementById('openlist_username').value = config.openlist.username || '';
-            document.getElementById('openlist_password').value = config.openlist.password || '';
-            document.getElementById('openlist_token').value = config.openlist.token || '';
-            document.getElementById('openlist_target_dir').value = config.openlist.target_dir || '/Anime';
-        }
-        
-        // 填充 ANI 配置
-        if (config.ani) {
-            const rssUpdate = config.ani.rss_update !== false;
-            document.getElementById('ani_rss_update').checked = rssUpdate;
-            document.getElementById('manual-config').style.display = rssUpdate ? 'none' : 'block';
-            
-            document.getElementById('ani_year').value = config.ani.year || '';
-            document.getElementById('ani_month').value = config.ani.month || '';
-            document.getElementById('ani_key_word').value = config.ani.key_word || '';
-            document.getElementById('ani_src_domain').value = config.ani.src_domain || 'aniopen.an-i.workers.dev';
-            document.getElementById('ani_rss_domain').value = config.ani.rss_domain || 'api.ani.rip';
-            document.getElementById('ani_flaresolverr_url').value = config.ani.flaresolverr_url || '';
-            document.getElementById('ani_flaresolverr_timeout').value = config.ani.flaresolverr_timeout ?? 60000;
-            document.getElementById('ani_resource_domain').value = config.ani.resource_domain || '';
-        }
-        
-        document.getElementById('http_timeout').value = config.http?.timeout ?? 30;
-        document.getElementById('openlist_update_timeout').value = config.openlist?.update_timeout ?? 120;
-
-        // 填充日志配置
-        if (config.logging) {
-            document.getElementById('logging_level').value = config.logging.level || 'INFO';
-            document.getElementById('logging_format').value = config.logging.format || '%(asctime)s - %(name)s - %(levelname)s - %(message)s';
-        }
-        
-        showAlert('配置加载成功', 'success');
-    } catch (error) {
-        console.error('加载配置失败:', error);
-        showAlert('加载配置失败', 'error');
-    }
-}
-
-document.getElementById('config-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    if (!this.checkValidity()) {
-        this.reportValidity();
-        return;
-    }
-    const httpTimeout = Number(document.getElementById('http_timeout').value);
-    const updateTimeout = Number(document.getElementById('openlist_update_timeout').value);
-    if (!Number.isFinite(updateTimeout) || updateTimeout <= 0) {
-        showAlert('存储写回等待时间必须是大于 0 的有限秒数', 'error');
-        return;
-    }
-    if (!Number.isFinite(httpTimeout) || httpTimeout <= 0) {
-        showAlert('HTTP 请求超时必须是大于 0 的有限秒数', 'error');
-        return;
-    }
-    
-    // 构建配置对象
-    const config = {
-        openlist: {
-            url: document.getElementById('openlist_url').value,
-            username: document.getElementById('openlist_username').value,
-            password: document.getElementById('openlist_password').value,
-            token: document.getElementById('openlist_token').value,
-            target_dir: document.getElementById('openlist_target_dir').value,
-            update_timeout: updateTimeout
-        },
-        ani: {
-            rss_update: document.getElementById('ani_rss_update').checked,
-            src_domain: document.getElementById('ani_src_domain').value,
-            rss_domain: document.getElementById('ani_rss_domain').value,
-            flaresolverr_url: document.getElementById('ani_flaresolverr_url').value,
-            flaresolverr_timeout: Number(document.getElementById('ani_flaresolverr_timeout').value),
-            resource_domain: document.getElementById('ani_resource_domain').value
-        },
-        http: {
-            timeout: httpTimeout
-        },
-        logging: {
-            level: document.getElementById('logging_level').value,
-            format: document.getElementById('logging_format').value
-        }
-    };
-    
-    // 如果不是 RSS 模式，添加手动配置
-    if (!config.ani.rss_update) {
-        const year = document.getElementById('ani_year').value;
-        const month = document.getElementById('ani_month').value;
-        const keyword = document.getElementById('ani_key_word').value;
-        
-        if (year) config.ani.year = parseInt(year);
-        if (month) config.ani.month = parseInt(month);
-        if (keyword) config.ani.key_word = keyword;
-    }
-    
-    try {
-        const response = await axios.post('/api/config', config);
-        showAlert(response.data.message, 'success');
-    } catch (error) {
-        showAlert(error.response?.data?.error || '保存配置失败', 'error');
-    }
-});
-
-// 页面加载时加载配置
-document.addEventListener('DOMContentLoaded', loadConfig);
+<script src="{{ url_for('static', filename='js/config.js') }}">
 </script>
 {% endblock %}

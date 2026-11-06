@@ -1,258 +1,58 @@
+{% macro icon(name) -%}<svg class="icon" aria-hidden="true">
+<use href="{{ url_for('static', filename='icons.svg') }}#{{ name }}"/>
+</svg>{%- endmacro %}
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Ani2Openlist Web UI{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        header {
-            background: white;
-            border-radius: 10px;
-            padding: 20px 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        header h1 {
-            color: #667eea;
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-
-        nav {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-
-        nav a {
-            color: #666;
-            text-decoration: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            transition: all 0.3s;
-        }
-
-        nav a:hover, nav a.active {
-            background: #667eea;
-            color: white;
-        }
-
-        .content {
-            background: white;
-            border-radius: 10px;
-            padding: 30px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .btn {
-            display: inline-block;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s;
-            text-decoration: none;
-            color: white;
-        }
-
-        .btn-primary {
-            background: #667eea;
-        }
-
-        .btn-primary:hover {
-            background: #5568d3;
-        }
-
-        .btn-success {
-            background: #48bb78;
-        }
-
-        .btn-success:hover {
-            background: #38a169;
-        }
-
-        .btn-danger {
-            background: #f56565;
-        }
-
-        .btn-danger:hover {
-            background: #e53e3e;
-        }
-
-        .btn-secondary {
-            background: #718096;
-        }
-
-        .btn-secondary:hover {
-            background: #4a5568;
-        }
-
-        .alert {
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-
-        .alert-success {
-            background: #c6f6d5;
-            color: #22543d;
-            border-left: 4px solid #38a169;
-        }
-
-        .alert-error {
-            background: #fed7d7;
-            color: #742a2a;
-            border-left: 4px solid #e53e3e;
-        }
-
-        .alert-warning {
-            background: #feebc8;
-            color: #744210;
-            border-left: 4px solid #dd6b20;
-        }
-
-        .alert-info {
-            background: #bee3f8;
-            color: #2c5282;
-            border-left: 4px solid #3182ce;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .card {
-            background: #f7fafc;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-
-        .card h3 {
-            color: #2d3748;
-            margin-bottom: 15px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        table th,
-        table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        table th {
-            background: #f7fafc;
-            font-weight: 600;
-            color: #2d3748;
-        }
-
-        .status-running {
-            color: #38a169;
-            font-weight: 600;
-        }
-
-        .status-idle {
-            color: #718096;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #718096;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-
-            header {
-                padding: 15px 20px;
-            }
-
-            .content {
-                padding: 20px;
-            }
-
-            nav {
-                flex-direction: column;
-            }
-
-            nav a {
-                display: block;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>
+{% block title %}Ani2Openlist{% endblock %}
+</title>
+<script>try{const t=localStorage.getItem('theme')||'system';document.documentElement.dataset.theme=t==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t}catch(e){document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🎬 Ani2Openlist Web UI</h1>
-            <nav>
-                <a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>仪表板</a>
-                <a href="{{ url_for('config_page') }}" {% if request.endpoint == 'config_page' %}class="active"{% endif %}>配置</a>
-                <a href="{{ url_for('schedule_page') }}" {% if request.endpoint == 'schedule_page' %}class="active"{% endif %}>定时任务</a>
-                <a href="{{ url_for('logs_page') }}" {% if request.endpoint == 'logs_page' %}class="active"{% endif %}>日志</a>
-            </nav>
-        </header>
-
-        <div class="content">
-            {% block content %}{% endblock %}
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    {% block scripts %}{% endblock %}
+<a class="skip-link" href="#main">跳至主要内容</a>
+<div class="mobile-bar">
+<a class="brand" href="/">{{ icon('brand') }} Ani2Openlist</a>
+<button id="menu-toggle" class="icon-btn" aria-label="打开导航" aria-expanded="false" aria-controls="sidebar">{{ icon('menu') }}</button>
+</div>
+<button id="nav-backdrop" class="nav-backdrop" aria-label="关闭导航" tabindex="-1" hidden>
+</button>
+<aside id="sidebar" class="sidebar">
+<a class="brand" href="/">{{ icon('brand') }} Ani2Openlist</a>
+<p class="nav-label">工作空间</p>
+<nav aria-label="主要导航">{% for endpoint,label,symbol in [('index','仪表板','dashboard'),('config_page','配置管理','settings'),('schedule_page','定时任务','clock'),('logs_page','运行日志','logs')] %}<a href="{{ url_for(endpoint) }}" {% if request.endpoint == endpoint %}class="active" aria-current="page"{% endif %}>{{ icon(symbol) }}{{ label }}</a>{% endfor %}</nav>
+<div class="sidebar-footer">
+<label for="theme">界面主题</label>
+<select id="theme">
+<option value="system">跟随系统</option>
+<option value="light">浅色</option>
+<option value="dark">深色</option>
+</select>
+<p>ANI Open → OpenList<br>
+<span>让追番整理更轻松</span>
+</p>
+</div>
+</aside>
+<main class="content" id="main" tabindex="-1">
+{% block content %}{% endblock %}
+</main>
+<dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+<form method="dialog">
+<div class="dialog-symbol">{{ icon('info') }}</div>
+<h2 id="confirm-title">确认操作</h2>
+<p id="confirm-message">
+</p>
+<div class="actions">
+<button class="btn" value="cancel" autofocus>取消</button>
+<button class="btn btn-primary" id="confirm-submit" value="confirm">确认</button>
+</div>
+</form>
+</dialog>
+<script src="{{ url_for('static', filename='js/common.js') }}">
+</script>
+{% block scripts %}{% endblock %}
 </body>
 </html>
