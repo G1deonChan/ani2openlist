@@ -139,7 +139,9 @@ class TestSlowStorageServer(unittest.IsolatedAsyncioTestCase):
                     if line.lower().startswith(b"content-length:")
                 )
                 received.append(json.loads(await reader.readexactly(length)))
-                await asyncio.sleep(0.2)
+                # Keep the response slower than the general timeout without
+                # making lazy async-backend initialization race a 50ms connect.
+                await asyncio.sleep(1.5)
                 body = b'{"code":200}'
                 writer.write(
                     b"HTTP/1.1 200 OK\r\nContent-Length: "
@@ -160,8 +162,8 @@ class TestSlowStorageServer(unittest.IsolatedAsyncioTestCase):
             client = OpenlistClient(
                 f"http://127.0.0.1:{port}",
                 token="test",
-                http_timeout=0.05,
-                storage_update_timeout=1,
+                http_timeout=1,
+                storage_update_timeout=5,
             )
         http = client._OpenlistClient__client
         await http.close_async_client()

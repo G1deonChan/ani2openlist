@@ -78,7 +78,7 @@ class HTTPClient:
 
     # 默认请求头
     HEADERS: dict[str, str] = {
-        "User-Agent": "Ani2Openlist/1.2.1",
+        "User-Agent": "Ani2Openlist/1.3.0",
         "Accept": "application/json",
     }
 
